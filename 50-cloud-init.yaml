@@ -1,0 +1,16 @@
+network:
+  version: 2
+  ethernets:
+    ens34:
+      dhcp4: false
+      addresses:
+        - 192.168.50.53/24
+      routes:
+      - to : default
+        via: 192.168.50.1
+  vlans:
+    vlan11:
+      id: 11
+      link: ens34
+      addresses:
+      - 10.11.11.53/24
