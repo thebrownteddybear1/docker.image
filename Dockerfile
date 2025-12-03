@@ -58,10 +58,13 @@ RUN mkdir -p /var/run/sshd && \
     mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh
 # Copy your application files
-COPY path /root/path
 COPY 50-cloud-init.yaml /root/
-RUN cp /root/path/kubectl /usr/local/bin && \
-    cp /root/path/kubectl-vsphere /usr/local/bin
+COPY path/kubectl /usr/local/bin
+COPY path/kubectl-vsphere /usr/local/bin
+COPY ansible.cfg /root/
+
+#RUN cp /root/path/kubectl /usr/local/bin && \
+   # cp /root/path/kubectl-vsphere /usr/local/bin
 
 # Set a working directory
 WORKDIR /root
@@ -72,23 +75,14 @@ ENV CLONE='git clone https://x-access-token:ghp_xrKQjSpT4sLqno3RzugBmP7Sbb0FG51B
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \  
     git config --global credential.helper store
 
-# Copy ansible.cfg
-COPY ansible.cfg /root/
-
 # Expose SSH port
 EXPOSE 22
 
 # Create a startup script
 RUN echo '#!/bin/bash' > /start.sh && \
-    echo 'mkdir -p /var/run/sshd' >> /start.sh && \
+   # echo 'mkdir -p /var/run/sshd' >> /start.sh && \
     echo '/usr/sbin/sshd -D &' >> /start.sh && \
-    echo 'echo "SSH server started on port 22"' >> /start.sh && \
-    echo 'echo "Connect using: ssh root@localhost -p 2222"' >> /start.sh && \
-    echo 'echo "Password:VMware1!VMware1!"' >> /start.sh && \
-    echo 'echo ""' >> /start.sh && \
-    echo 'echo "Repository cloned to /root/tonjiak"' >> /start.sh && \
-    echo 'ls -la /root/tonjiak/' >> /start.sh && \
-    echo  export clone="git clone https://x-access-token:$token@github.com/thebrownteddybear1/tonjiak.git" && \
+    echo '$CLONE'>>/start.sh && \
     echo 'tail -f /dev/null' >> /start.sh && \
     chmod +x /start.sh
 
