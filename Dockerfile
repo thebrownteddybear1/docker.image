@@ -67,11 +67,10 @@ RUN cp /root/path/kubectl /usr/local/bin && \
 WORKDIR /root
 
 # *** HARCODED TOKEN ***
-ENV TOKEN=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
-RUN   git config --global user.email "thebrownteddybear@gmail.com" &&\ 
-  git config --global user.name "teddy"
-# Configure Git and clone repository
-RUN git config --global credential.helper store
+ENV TOKEN='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'
+ENV CLONE='git clone https://x-access-token:$TOKEN@github.com/thebrownteddybear1/tonjiak.git' 
+RUN git config --global user.email "thebrownteddybear@gmail.com" && \  
+    git config --global credential.helper store
 
 # Copy ansible.cfg
 COPY ansible.cfg /root/
@@ -89,20 +88,18 @@ RUN echo '#!/bin/bash' > /start.sh && \
     echo 'echo ""' >> /start.sh && \
     echo 'echo "Repository cloned to /root/tonjiak"' >> /start.sh && \
     echo 'ls -la /root/tonjiak/' >> /start.sh && \
-    echo export token=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  &&\
-    echo  export clone="git clone https://x-access-token:$token@github.com/thebrownteddybear1/tonjiak.git" &&\
+    echo  export clone="git clone https://x-access-token:$token@github.com/thebrownteddybear1/tonjiak.git" && \
     echo 'tail -f /dev/null' >> /start.sh && \
     chmod +x /start.sh
 
 ENTRYPOINT ["/start.sh"]
-CMD [/bin/sh, -c , tail -f /dev/null]
+#CMD [/bin/sh, -c , tail -f /dev/null]
 #comments to myself
 ENV comments="gh auth login \n\
 …or create a new repository on the command line\n\
 echo \"# tonjiak\" >> README.md \n\
 \n\
-\n\
-git init \n\
+\n\ git init \n\
 git clone https://x-access-token:$TOKEN@github.com/thebrownteddybear1/tonjiak.git \n\
 #this will create tonjiak dir \n\
 just add everything, git add . or git add somefile or dir \n\
