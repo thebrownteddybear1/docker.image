@@ -68,7 +68,7 @@ WORKDIR /root
 
 # *** HARCODED TOKEN ***
 ENV TOKEN='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'
-ENV CLONE='git clone https://x-access-token:$TOKEN@github.com/thebrownteddybear1/tonjiak.git' 
+ENV CLONE='git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git' 
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \  
     git config --global credential.helper store
 
