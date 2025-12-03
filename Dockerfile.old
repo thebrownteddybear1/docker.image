@@ -90,7 +90,8 @@ RUN echo '#!/bin/bash' > /start.sh && \
     echo 'echo "Repository cloned to /root/tonjiak"' >> /start.sh && \
     echo 'ls -la /root/tonjiak/' >> /start.sh && \
     echo export token=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  &&\
-    echo  export clone="git clone https://x-access-token:$token@github.com/thebrownteddybear1/tonjiak.git" &&\
+    echo  export git clone https://x-access-token:$token@github.com/thebrownteddybear1/tonjiak.git &&\
+
     echo 'tail -f /dev/null' >> /start.sh && \
     chmod +x /start.sh
 
@@ -146,3 +147,4 @@ git push: This command uploads your local commits to the remote repository (orig
 origin main: Specifies exactly which remote (origin) and which local branch (main) you want to push.\n\
 Result: Your local work is synchronized with the GitHub repository, making your code visible online.\n\
 "
+
