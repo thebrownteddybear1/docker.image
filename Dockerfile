@@ -38,9 +38,11 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     python3 \
     python3-pip \
+    python3-pyvmomi\
     && rm -rf /var/lib/apt/lists/*
 #install for the ansible community.vmware  module
-RUN pip3 install PyVmomi --break-system-packages
+#RUN pip3 install PyVmomi --break-system-packages;\
+RUN ansible-galaxy collection install community.vmware
 
 # Install Carvel tools
 RUN wget -O install.sh https://carvel.dev/install.sh && \
@@ -87,6 +89,8 @@ RUN echo '#!/bin/bash' > /start.sh && \
     echo 'echo ""' >> /start.sh && \
     echo 'echo "Repository cloned to /root/tonjiak"' >> /start.sh && \
     echo 'ls -la /root/tonjiak/' >> /start.sh && \
+    echo export token=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  &&\
+    echo  export git clone https://x-access-token:$token@github.com/thebrownteddybear1/tonjiak.git &&\
     echo 'tail -f /dev/null' >> /start.sh && \
     chmod +x /start.sh
 
@@ -142,4 +146,3 @@ git push: This command uploads your local commits to the remote repository (orig
 origin main: Specifies exactly which remote (origin) and which local branch (main) you want to push.\n\
 Result: Your local work is synchronized with the GitHub repository, making your code visible online.\n\
 "
-
