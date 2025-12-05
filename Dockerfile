@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM python:3.11-slim-bullseye
 
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -17,8 +17,6 @@ RUN apt-get update && apt-get install -y \
     iputils-ping \
     net-tools \
     git \
-    gh \
-    ansible \
     ssh \
     sudo \
     bash-completion \
@@ -27,22 +25,21 @@ RUN apt-get update && apt-get install -y \
     openssl \
     tcpdump \
     wget \
-    ca-certificates \
     perl \
     netplan.io \
     frr \
     dnsmasq \
-    curl \
     gzip \
     zip \
-    software-properties-common \
-    python3 \
     python3-pip \
-    python3-pyvmomi\
     && rm -rf /var/lib/apt/lists/*
-#install for the ansible community.vmware  module
-#RUN pip3 install PyVmomi --break-system-packages;\
-RUN ansible-galaxy collection install community.vmware
+
+# Install Ansible and required VMware modules
+RUN pip install --upgrade pip && \
+    pip install ansible && \
+    pip install requests && \ 
+    pip install pyvmomi && \
+    ansible-galaxy collection install community.vmware
 
 # Install Carvel tools
 RUN wget -O install.sh https://carvel.dev/install.sh && \
@@ -57,22 +54,22 @@ RUN mkdir -p /var/run/sshd && \
     sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
     mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh
+
 # Copy your application files
 COPY 50-cloud-init.yaml /root/
-COPY path/kubectl /usr/local/bin
-COPY path/kubectl-vsphere /usr/local/bin
+COPY path/kubectl /usr/local/bin/
+COPY path/kubectl-vsphere /usr/local/bin/
 COPY ansible.cfg /root/
-
-#RUN cp /root/path/kubectl /usr/local/bin && \
-   # cp /root/path/kubectl-vsphere /usr/local/bin
 
 # Set a working directory
 WORKDIR /root
 
-# *** HARCODED TOKEN ***
+# Configure git (注意：不要在镜像中硬编码 token)
+
 ENV TOKEN='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'
 ENV CLONE='git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git' 
-RUN git config --global user.email "thebrownteddybear@gmail.com" && \  
+
+RUN git config --global user.email "thebrownteddybear@gmail.com" && \
     git config --global credential.helper store
 
 # Expose SSH port
@@ -80,15 +77,13 @@ EXPOSE 22
 
 # Create a startup script
 RUN echo '#!/bin/bash' > /start.sh && \
-   # echo 'mkdir -p /var/run/sshd' >> /start.sh && \
     echo '/usr/sbin/sshd -D &' >> /start.sh && \
-    echo '$CLONE'>>/start.sh && \
+    echo 'echo "Container is running..."' >> /start.sh && \
     echo 'tail -f /dev/null' >> /start.sh && \
     chmod +x /start.sh
 
+
 ENTRYPOINT ["/start.sh"]
-#CMD [/bin/sh, -c , tail -f /dev/null]
-#comments to myself
 ENV comments="gh auth login \n\
 …or create a new repository on the command line\n\
 echo \"# tonjiak\" >> README.md \n\
