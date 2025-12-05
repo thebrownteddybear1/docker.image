@@ -70,7 +70,8 @@ ENV TOKEN='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'
 ENV CLONE='git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git' 
 
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \
-    git config --global credential.helper store
+    git config --global credential.helper store && \
+    $CLONE
 
 # Expose SSH port
 EXPOSE 22
