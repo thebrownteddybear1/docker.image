@@ -15,13 +15,13 @@
             ],
             "thin_disk_mode": true,
             "deployment_option": "small",
-            "name": "vcsa52.corp.internal"
+            "name": "vcsa51.corp.internal"
         },
         "network": {
             "ip_family": "ipv4",
             "mode": "static",
-            "system_name": "vcsa52.corp.internal",
-            "ip": "192.168.50.52",
+            "system_name": "vcsa51.corp.internal",
+            "ip": "192.168.50.51",
             "prefix": "24",
             "gateway": "192.168.50.53",
             "dns_servers": [

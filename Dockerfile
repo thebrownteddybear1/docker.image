@@ -3,6 +3,14 @@ FROM python:3.11-slim-bullseye
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Copy your application files
+COPY 50-cloud-init.yaml /root/
+COPY path/kubectl /usr/local/bin/
+COPY path/kubectl-vsphere /usr/local/bin/
+COPY ansible.cfg /root/
+COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
+COPY vcenter.install.scripts /root/vcenter.install.scripts
+
 # Update apt and install initial packages
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
@@ -32,6 +40,7 @@ RUN apt-get update && apt-get install -y \
     gzip \
     zip \
     python3-pip \
+    locales \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Ansible and required VMware modules
@@ -39,6 +48,8 @@ RUN pip install --upgrade pip && \
     pip install ansible && \
     pip install requests && \ 
     pip install pyvmomi && \
+    pip install pyvim && \
+    locale-gen en_US.UTF-8 && \
     ansible-galaxy collection install community.vmware
 
 # Install Carvel tools
@@ -53,13 +64,13 @@ RUN mkdir -p /var/run/sshd && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
     mkdir -p /root/.ssh && \
-    chmod 700 /root/.ssh
+    chmod 700 /root/.ssh && \
+    cd /root; unzip VMware-ovftool-5.0.0-24781994-lin.x86_64.zip; chmod +x /root/ovftool/ovftool
 
-# Copy your application files
-COPY 50-cloud-init.yaml /root/
-COPY path/kubectl /usr/local/bin/
-COPY path/kubectl-vsphere /usr/local/bin/
-COPY ansible.cfg /root/
+
+
+
+#nsxt
 
 # Set a working directory
 WORKDIR /root
@@ -68,7 +79,7 @@ WORKDIR /root
 
 ENV TOKEN='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'
 ENV CLONE='git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git' 
-
+ENV PATH=$PATH:/root/ovftool/
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \
     git config --global credential.helper store && \
     $CLONE
