@@ -90,7 +90,7 @@ RUN echo '#!/bin/bash' > /start.sh && \
     echo 'echo "Repository cloned to /root/tonjiak"' >> /start.sh && \
     echo 'ls -la /root/tonjiak/' >> /start.sh && \
     echo export token=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  &&\
-    echo  export git clone https://x-access-token:$token@github.com/thebrownteddybear1/tonjiak.git &&\
+    echo  export git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git &&\
 
     echo 'tail -f /dev/null' >> /start.sh && \
     chmod +x /start.sh

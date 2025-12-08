@@ -7,7 +7,7 @@
             "username": "root",
             "password": "VMware1!VMware1!VMware1!VMware1!",
             "deployment_network": "VM Network",
-            "datastore": "nvme2"
+            "datastore": "sata4b"
         },
         "appliance": {
             "__comments": [
