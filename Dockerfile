@@ -1,4 +1,6 @@
-FROM python:3.12-slim-bullseye
+# FROM python:3.12-slim-bullseye
+#FROM python:3.10-slim-bullseye
+FROM python:latest
 
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -80,7 +82,8 @@ RUN ansible-galaxy collection install community.general
 RUN ansible-galaxy collection install ansible.posix
 
 # Install Carvel tools
-RUN wget -O install.sh https://carvel.dev/install.sh && \
+RUN echo "install carvel" && \
+    wget -O install.sh https://carvel.dev/install.sh && \
     chmod +x install.sh && \
     bash ./install.sh
 
@@ -150,6 +153,7 @@ RUN echo "[defaults]" > /root/ansible.cfg && \
     echo "" >> /root/ansible.cfg && \
     echo "[connection]" >> /root/ansible.cfg && \
     echo "pipelining = True" >> /root/ansible.cfg; 
+ENV CLONE="git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git"
 RUN cd /root; git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
     cp /root/ansible.cfg /root/tonjiak/
 # 验证安装
@@ -157,4 +161,4 @@ RUN echo "验证安装..." && \
     python --version && \
     ansible --version && \
     ansible-galaxy collection list | grep -E "(vmware|community)" && \
-    echo "安装完成！"
+    ansible-galaxy collection install community.vmware --upgrade
