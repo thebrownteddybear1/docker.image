@@ -64,7 +64,9 @@ RUN pip install --upgrade pip && \
     pip install ansible && \
     pip install requests && \
     pip install pyvmomi && \
-    pip install pyvim
+    pip install pyvim && \
+    pip install aiohttp aiohttp-retry
+
 
 # 安装 Ansible collections
 # community.vmware 可以从 Galaxy 安装
