@@ -24,7 +24,7 @@ git add .
 # Commit files
 git commit -m "Initial commit"
 
-GITHUB_TOKEN=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
+GITHUB_TOKEN=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
 git clone https://github.com/thebrownteddybear1/tonjiak.git
 
 
@@ -57,7 +57,7 @@ git add .
 # Commit files
 git commit -m "Initial commit"
 
-GITHUB_TOKEN=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
+GITHUB_TOKEN=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
 git clone https://github.com/thebrownteddybear1/tonjiak.git
 
 
