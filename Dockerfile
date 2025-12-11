@@ -69,17 +69,14 @@ RUN pip install --upgrade pip && \
 # 安装 Ansible collections
 # community.vmware 可以从 Galaxy 安装
 # vmware.ansible_for_nsxt 需要从 GitHub 安装
-RUN ansible-galaxy collection install community.vmware
+RUN ansible-galaxy collection install community.vmware && \
+    ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git && \
+    ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0 && \
+    ansible-galaxy collection install community.general && \
+    ansible-galaxy collection install ansible.posix && \
+    ansible-galaxy collection install vmware.vmware && \
+    ansible-galaxy collection install vmware.vmware_rest
 
-# 安装 vmware.ansible_for_nsxt 的正确方式
-RUN ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git
-
-# 或者指定版本（如果需要特定版本）
-# RUN ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0
-
-# 也可以安装其他相关 collections
-RUN ansible-galaxy collection install community.general
-RUN ansible-galaxy collection install ansible.posix
 
 # Install Carvel tools
 RUN echo "install carvel" && \
