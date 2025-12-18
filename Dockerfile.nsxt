@@ -45,7 +45,7 @@ RUN apt-get update && apt-get install -y \
 #install for the ansible community.vmware  module
 #RUN pip3 install PyVmomi --break-system-packages;\
 RUN ansible-galaxy collection install community.vmware && \
-    ansible-galaxy collection install vmware.ansible_for_nsxt --force && \
+    # ansible-galaxy collection install vmware.ansible_for_nsxt --force && \
     # old version 1 ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git && \
     RUN ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,master --force && \
     ansible-galaxy collection install community.general && \
