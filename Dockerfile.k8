@@ -44,7 +44,11 @@ RUN apt-get update && apt-get install -y \
     bash \
     && rm -rf /var/lib/apt/lists/*
  #   git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git
-
+# Enable color support for ls in bash
+RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
+    echo "alias ll='ls -alF'" >> /root/.bashrc && \
+    echo "alias la='ls -A'" >> /root/.bashrc && \
+    echo "alias l='ls -CF'" >> /root/.bashrc
 # Generate locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
     locale-gen en_US.UTF-8

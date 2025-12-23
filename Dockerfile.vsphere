@@ -75,7 +75,12 @@ RUN ansible-galaxy collection install community.vmware && \
     ansible-galaxy collection install vmware.vmware_rest && \
     ansible-galaxy collection install community.vmware --upgrade && \
     pip install -r /usr/local/lib/python3.14/site-packages/ansible_collections/community/vmware/requirements.txt
-
+# Enable color support for ls in bash
+RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
+    echo "alias ll='ls -alF'" >> /root/.bashrc && \
+    echo "alias la='ls -A'" >> /root/.bashrc && \
+    echo "alias l='ls -CF'" >> /root/.bashrc
+    
 # SSH Setup
 RUN mkdir -p /var/run/sshd && \
     echo 'root:VMware1!VMware1!' | chpasswd && \
