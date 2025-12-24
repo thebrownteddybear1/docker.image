@@ -7,6 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Update apt and install initial packages
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
+    software-properties-common \
     ca-certificates \
     curl \
     gnupg \
@@ -42,11 +43,16 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-pyvmomi\
     && rm -rf /var/lib/apt/lists/*
-#install for the ansible community.vmware  module
-#RUN pip3 install PyVmomi --break-system-packages;\
+
+RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
+    sudo dpkg -i packages-microsoft-prod.deb && \
+    rm packages-microsoft-prod.deb && \
+    sudo apt-get update && \
+    sudo apt-get install -y powershell
+
+
+
 RUN ansible-galaxy collection install community.vmware && \
-    # ansible-galaxy collection install vmware.ansible_for_nsxt --force && \
-    # old version 1 ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git && \
     ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0 && \
     ansible-galaxy collection install community.general && \
     ansible-galaxy collection install ansible.posix && \
