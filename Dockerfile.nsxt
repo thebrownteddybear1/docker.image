@@ -42,12 +42,8 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-pyvmomi\
     && rm -rf /var/lib/apt/lists/*
-#install for the ansible community.vmware  module
-#RUN pip3 install PyVmomi --break-system-packages;\
-RUN ansible-galaxy collection install community.vmware && \
-    # ansible-galaxy collection install vmware.ansible_for_nsxt --force && \
-    # old version 1 ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git && \
-    ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0 && \
+ ansible-galaxy collection install community.vmware --force
+RUN ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0 && \
     ansible-galaxy collection install community.general && \
     ansible-galaxy collection install ansible.posix && \
     ansible-galaxy collection install vmware.vmware 
@@ -58,8 +54,7 @@ RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias la='ls -A'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
     
-RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
-    pip install -r /usr/lib/python3/dist-packages/ansible_collections/community/vmware/requirements.txt
+RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && 
 # SSH Setup
 RUN mkdir -p /var/run/sshd && \
     echo 'root:VMware1!VMware1!' | chpasswd && \
