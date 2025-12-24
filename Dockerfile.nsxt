@@ -59,7 +59,7 @@ RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
     
 RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
-    pip install -r /usr/local/lib/python3.14/site-packages/ansible_collections/community/vmware/requirements.txt
+    pip install -r /usr/local/lib/python3.10/site-packages/ansible_collections/community/vmware/requirements.txt
 # SSH Setup
 RUN mkdir -p /var/run/sshd && \
     echo 'root:VMware1!VMware1!' | chpasswd && \
