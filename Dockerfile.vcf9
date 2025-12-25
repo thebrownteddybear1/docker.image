@@ -72,6 +72,7 @@ COPY ansible.cfg /root/
 
 # Expose SSH port
 EXPOSE 22
+EXPOSE 443
 #install powershell
 RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
     sudo dpkg -i packages-microsoft-prod.deb && \
@@ -89,6 +90,8 @@ RUN echo '#!/bin/bash' > /start.sh && \
     echo  'echo "#git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git" >> /start.sh' && \
     git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
     chmod +x ~/tonjiak/vcf9/offlinedepot/* && \
+    cd ~/tonjiak/vcf9/offlinedepot/ && \
+    ./tls.cert.sh &&
     echo 'tail -f /dev/null' >> /start.sh && \
     chmod +x /start.sh
 
