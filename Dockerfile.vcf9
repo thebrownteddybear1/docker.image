@@ -89,7 +89,7 @@ RUN echo '#!/bin/bash' > /start.sh && \
     echo './tls.cert.key.sh' >> /start.sh && \
     echo 'tail -f /dev/null' >> /start.sh && \
     echo  'echo "#git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git" >> /start.sh' && \
-    git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
+    git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && 
   
 
 ENTRYPOINT ["/start.sh"]
