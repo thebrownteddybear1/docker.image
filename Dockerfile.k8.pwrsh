@@ -45,9 +45,6 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     software-properties-common \
-    python3 \
-    python3-pip \
-    python3-pyvmomi\
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
@@ -71,29 +68,8 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-# 重要：创建 python 符号链接
-RUN ln -sf /usr/bin/python3 /usr/bin/python
-
-# 更简单的 Ansible 安装方式（使用 pip）
-RUN pip install --upgrade pip && \
-    pip install ansible && \
-    pip install requests && \
-    pip install pyvmomi && \
-    pip install pyvim && \
-    pip install aiohttp aiohttp-retry
 
 
-# 安装 Ansible collections
-# community.vmware 可以从 Galaxy 安装
-# vmware.ansible_for_nsxt 需要从 GitHub 安装
-RUN ansible-galaxy collection install community.vmware && \
-    ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git && \
-    ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0 && \
-    ansible-galaxy collection install community.general && \
-    ansible-galaxy collection install ansible.posix && \
-    ansible-galaxy collection install vmware.vmware && \
-    ansible-galaxy collection install vmware.vmware_rest && \
-    ansible-galaxy collection install community.vmware 
 
 
 # Install Carvel tools
