@@ -40,7 +40,6 @@ RUN apt-get update && apt-get install -y \
     zip \
     python3-pip \
     locales \
-    software-properties-common \
     bash
 RUN rm -rf /var/lib/apt/lists/*
  #   git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git
