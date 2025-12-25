@@ -39,19 +39,6 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     bash \
      && rm -rf /var/lib/apt/lists/*
-RUN pip install --upgrade pip && \
-    pip install ansible && \
-    pip install requests && \
-    pip install pyvmomi && \
-    pip install pyvim && \
-    pip install aiohttp aiohttp-retry 
-
-RUN ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0 && \
-    ansible-galaxy collection install community.general && \
-    ansible-galaxy collection install ansible.posix && \
-    ansible-galaxy collection install community.vmware && \
-    ansible-galaxy collection install vmware.vmware && \
-    ansible-galaxy collection install vmware.vmware_rest && \
 
 # Enable color support for ls in bash
 RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
