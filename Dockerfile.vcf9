@@ -84,15 +84,12 @@ RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsof
 RUN echo '#!/bin/bash' > /start.sh && \
     echo 'mkdir -p /var/run/sshd' >> /start.sh && \
     echo '/usr/sbin/sshd -D &' >> /start.sh && \
-    echo 'echo "SSH server started on port 22"' >> /start.sh && \
-    echo 'echo "Connect using: ssh root@localhost -p 2222"' >> /start.sh && \
-    echo 'echo "Password:VMware1!VMware1!"' >> /start.sh && \
+    echo 'cd /root/tonjiak/vcf9/offlinedepot/' >> /start.sh && \
+    echo 'chmod +x tls.cert.key.sh' >> /start.sh && \
+    echo './tls.cert.key.sh' >> /start.sh && \
+    echo 'tail -f /dev/null' >> /start.sh && \
     echo  'echo "#git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git" >> /start.sh' && \
     git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
-    chmod +x ~/tonjiak/vcf9/offlinedepot/* && \
-    cd ~/tonjiak/vcf9/offlinedepot/ && \
-    ./tls.cert.key.sh && \
-    echo 'tail -f /dev/null' >> /start.sh && \
-    chmod +x /start.sh
+  
 
 ENTRYPOINT ["/start.sh"]
