@@ -1,5 +1,4 @@
 FROM ubuntu:latest  
-# works with nsxt for ansible
 
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -27,26 +26,30 @@ RUN apt-get update && apt-get install -y \
     openssl \
     tcpdump \
     wget \
-    ca-certificates \
     perl \
     netplan.io \
     frr \
     dnsmasq \
-    curl \
     gzip \
     zip \
     unzip \
     software-properties-common \
+    python3 \
     bash \
-     && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Enable color support for ls in bash
 RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias ll='ls -alF'" >> /root/.bashrc && \
     echo "alias la='ls -A'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
-    
-RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git
+
+# Set a working directory
+WORKDIR /root
+
+# Clone the repository during build
+RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
+
 # SSH Setup
 RUN mkdir -p /var/run/sshd && \
     echo 'root:VMware1!VMware1!' | chpasswd && \
@@ -55,41 +58,39 @@ RUN mkdir -p /var/run/sshd && \
     sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
     mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh
-# Copy your application files
+
+# Copy your application files (Ensure 'ovftool' and 'ansible.cfg' exist in your build folder)
 COPY ovftool /root/ovftool
-
-# Set a working directory
-WORKDIR /root
-
-# *** HARCODED TOKEN ***
-ENV TOKEN=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
-RUN   git config --global user.email "thebrownteddybear@gmail.com" && \ 
-      git config --global user.name "teddy" && \
-      git config --global credential.helper store
-
-# Copy ansible.cfg
 COPY ansible.cfg /root/
 
-# Expose SSH port
+# Git configuration
+RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
+    git config --global user.name "teddy" && \
+    git config --global credential.helper store
+
+# Install PowerShell
+RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
+    dpkg -i packages-microsoft-prod.deb && \
+    rm packages-microsoft-prod.deb && \
+    apt-get update && \
+    apt-get install -y powershell
+
+# Create the startup script in a system path
+RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
+    echo 'mkdir -p /var/run/sshd' >> /usr/local/bin/start.sh && \
+    echo '/usr/sbin/sshd -D &' >> /usr/local/bin/start.sh && \
+    echo 'echo "SSH server starting..."' >> /usr/local/bin/start.sh && \
+    echo 'cd /root/tonjiak/vcf9/offlinedepot/' >> /usr/local/bin/start.sh && \
+    echo 'chmod +x tls.cert.key.sh' >> /usr/local/bin/start.sh && \
+    echo './tls.cert.key.sh' >> /usr/local/bin/start.sh && \
+    echo 'echo "Webserver script executed."' >> /usr/local/bin/start.sh && \
+    echo 'tail -f /dev/null' >> /usr/local/bin/start.sh
+
+# Explicitly set permissions
+RUN chmod +x /usr/local/bin/start.sh
+
+# Expose ports
 EXPOSE 22
 EXPOSE 443
-#install powershell
-RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
-    sudo dpkg -i packages-microsoft-prod.deb && \
-    rm packages-microsoft-prod.deb && \
-    sudo apt-get update && \
-    sudo apt-get install -y powershell
 
-# Create a root/startup script
-RUN echo '#!/bin/bash' > /root/start.sh && \
-    echo 'mkdir -p /var/run/sshd' >> /root/start.sh && \
-    echo '/usr/sbin/sshd -D &' >> /root/start.sh && \
-    echo 'cd /root/tonjiak/vcf9/offlinedepot/' >> /root/start.sh && \
-    echo 'chmod +x tls.cert.key.sh' >> /root/start.sh && \
-    echo './tls.cert.key.sh' >> /root/start.sh && \
-    echo 'tail -f /dev/null' >> /root/start.sh && \
-    echo  'echo "#git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git" >> /root/start.sh' && \
-    git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git
-RUN chmod +x /root/start.sh
-
-ENTRYPOINT ["/root/start.sh"]
+ENTRYPOINT ["/usr/local/bin/start.sh"]
