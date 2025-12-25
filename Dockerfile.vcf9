@@ -19,7 +19,6 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     git \
     gh \
-    ansible \
     ssh \
     sudo \
     bash-completion \
@@ -46,7 +45,7 @@ RUN pip install --upgrade pip && \
     pip install pyvmomi && \
     pip install pyvim && \
     pip install aiohttp aiohttp-retry 
-    
+
 RUN ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0 && \
     ansible-galaxy collection install community.general && \
     ansible-galaxy collection install ansible.posix && \
