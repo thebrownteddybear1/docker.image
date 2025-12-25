@@ -40,8 +40,8 @@ RUN apt-get update && apt-get install -y \
     zip \
     python3-pip \
     locales \
-    bash
-RUN rm -rf /var/lib/apt/lists/*
+    bash && \
+    rm -rf /var/lib/apt/lists/*
  #   git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git
 
 # Generate locale
@@ -74,7 +74,6 @@ RUN ansible-galaxy collection install community.vmware && \
     ansible-galaxy collection install ansible.posix && \
     ansible-galaxy collection install vmware.vmware && \
     ansible-galaxy collection install vmware.vmware_rest && \
-#    ansible-galaxy collection install community.vmware --upgrade && \
     pip install -r /usr/local/lib/python3.14/site-packages/ansible_collections/community/vmware/requirements.txt
 # Enable color support for ls in bash
 RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
@@ -109,11 +108,11 @@ RUN git config --global user.email "thebrownteddybear@gmail.com" && \
 # Expose SSH port
 EXPOSE 22
 #install powershell
-RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
-    sudo dpkg -i packages-microsoft-prod.deb && \
+RUN wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb && \
+    dpkg -i packages-microsoft-prod.deb && \
     rm packages-microsoft-prod.deb && \
-    sudo apt-get update && \
-    sudo apt-get install -y powershell
+    apt-get update && \
+    apt-get install -y powershell
 # Create a startup script
 RUN echo '#!/bin/bash' > /start.sh && \
     echo 'set -e' >> /start.sh && \
