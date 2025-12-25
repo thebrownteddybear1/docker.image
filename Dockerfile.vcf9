@@ -37,11 +37,16 @@ RUN apt-get update && apt-get install -y \
     gzip \
     zip \
     unzip \
-    python3-pip \
     software-properties-common \
     bash \
      && rm -rf /var/lib/apt/lists/*
-
+RUN pip install --upgrade pip && \
+    pip install ansible && \
+    pip install requests && \
+    pip install pyvmomi && \
+    pip install pyvim && \
+    pip install aiohttp aiohttp-retry 
+    
 RUN ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0 && \
     ansible-galaxy collection install community.general && \
     ansible-galaxy collection install ansible.posix && \
@@ -66,12 +71,7 @@ RUN mkdir -p /var/run/sshd && \
     chmod 700 /root/.ssh
 # Copy your application files
 COPY ovftool /root/ovftool
-RUN pip install --upgrade pip && \
-    pip install ansible && \
-    pip install requests && \
-    pip install pyvmomi && \
-    pip install pyvim && \
-    pip install aiohttp aiohttp-retry
+
 # Set a working directory
 WORKDIR /root
 
