@@ -87,9 +87,19 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
     echo 'echo "Webserver script executed."' >> /usr/local/bin/start.sh && \
     echo 'tail -f /dev/null' >> /usr/local/bin/start.sh
 
+#broadcom vpn
+RUN sudo apt install openconnect  && \
+    mkdir ~/vpn/ && \
+    echo "#!/bin/bash" > ~/vpn/vpn.up.sh  && \
+    echo "set -x"  > ~/vpn/vpn.up.sh  && \
+    echo "sudo openconnect -u 'ty036880@broadcom.net' --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh portal.vpn.broadcom.com -b" > ~/bc.vpn/bc.vpn.up.sh  && \
+    echo "#!/bin/bash" > ~/vpn/vpn.down.sh  && \
+    echo "set -x"  > ~/vpn/vpn.down.sh  && \
+    echo "ps aux | grep -v -e defunct -e grep | grep  openconnect" > ~/vpn/vpn.down.sh  && \
+    chnod +x ~/vpn/vpn.up.sh  && \
+    chnod +x ~/vpn/vpn.down.sh
 # Explicitly set permissions
 RUN chmod +x /usr/local/bin/start.sh
-
 # Expose ports
 EXPOSE 22
 EXPOSE 443
