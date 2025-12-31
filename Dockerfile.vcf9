@@ -88,7 +88,7 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
     echo 'tail -f /dev/null' >> /usr/local/bin/start.sh
 
 #broadcom vpn
-RUN sudo apt install openconnect  && \
+RUN apt install -y openconnect && \
     mkdir ~/vpn/ && \
     echo "#!/bin/bash" > ~/vpn/vpn.up.sh  && \
     echo "set -x"  > ~/vpn/vpn.up.sh  && \
