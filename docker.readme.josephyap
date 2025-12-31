@@ -1,0 +1,3 @@
+cp Dockerfile.vcf9 Dockerfile
+docker build -t vcf9 .
+docker run -d -name vcf9 -p 443:443 --priviledged vcf9:latest

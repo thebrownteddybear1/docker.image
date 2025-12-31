@@ -92,10 +92,11 @@ RUN apt install -y openconnect && \
     mkdir /root/vpn/ && \
     echo "#!/bin/bash" > /root/vpn/vpn.up.sh  && \
     echo "set -x"  > /root/vpn/vpn.up.sh  && \
-    echo "sudo openconnect -u 'ty036880@broadcom.net' --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh portal.vpn.broadcom.com -b" > /root/vpn/vpn.up.sh  && \
+    echo "openconnect -u 'ty036880@broadcom.net' --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh portal.vpn.broadcom.com -b" > /root/vpn/vpn.up.sh  && \
     echo "#!/bin/bash" > /root/vpn/vpn.down.sh  && \
     echo "set -x"  > /root/vpn/vpn.down.sh  && \
     echo "ps aux | grep -v -e defunct -e grep | grep  openconnect" > /root/vpn/vpn.down.sh  && \
+    
     chmod +x /root/vpn/vpn.up.sh  && \
     chmod +x /root/vpn/vpn.down.sh
 # Explicitly set permissions
