@@ -96,8 +96,8 @@ RUN apt install -y openconnect && \
     echo "#!/bin/bash" > /root/vpn/vpn.down.sh  && \
     echo "set -x"  > /root/vpn/vpn.down.sh  && \
     echo "ps aux | grep -v -e defunct -e grep | grep  openconnect" > /root/vpn/vpn.down.sh  && \
-    chnod +x /root/vpn/vpn.up.sh  && \
-    chnod +x /root/vpn/vpn.down.sh
+    chmod +x /root/vpn/vpn.up.sh  && \
+    chmod +x /root/vpn/vpn.down.sh
 # Explicitly set permissions
 RUN chmod +x /usr/local/bin/start.sh
 # Expose ports
