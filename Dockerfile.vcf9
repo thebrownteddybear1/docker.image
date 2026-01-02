@@ -89,15 +89,18 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
 
 #broadcom vpn
 RUN apt install -y openconnect && \
-    mkdir /root/vpn/ && \
-    echo "#!/bin/bash" > /root/vpn/vpn.up.sh  && \
-    echo "set -x"  > /root/vpn/vpn.up.sh  && \
-    echo "openconnect -u 'ty036880@broadcom.net' --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh portal.vpn.broadcom.com -b" > /root/vpn/vpn.up.sh  && \
-    echo "#!/bin/bash" > /root/vpn/vpn.down.sh  && \
-    echo "set -x"  > /root/vpn/vpn.down.sh  && \
-    echo "ps aux | grep -v -e defunct -e grep | grep  openconnect" > /root/vpn/vpn.down.sh  && \
-    chmod +x /root/vpn/vpn.up.sh  && \
-    chmod +x /root/vpn/vpn.down.sh
+    mkdir /root/tonjiak/vcf9/offlinedepot/vpn && \
+    cd /root/tonjiak/vcf9/offlinedepot/vpn/
+    echo "#!/bin/bash" > vpn.up.sh  && \
+    echo "set -x"  > vpn.up.sh  && \
+    echo "openconnect -u 'ty036880@broadcom.net' --protocol=gp \
+    --csd-wrapper /usr/libexec/openconnect/hipreport.sh \ 
+    portal.vpn.broadcom.com -b" > vpn.up.sh  && \
+    echo "#!/bin/bash" > vpn.down.sh  && \
+    echo "set -x"  > vpn.down.sh  && \
+    echo "ps aux | grep -v -e defunct -e grep | grep  openconnect" > vpn.down.sh  && \
+    chmod +x vpn.up.sh  && \
+    chmod +x vpn.down.sh
 # Explicitly set permissions
 RUN chmod +x /usr/local/bin/start.sh
 # Expose ports
