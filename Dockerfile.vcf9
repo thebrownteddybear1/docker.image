@@ -90,10 +90,12 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
 #broadcom vpn
 RUN apt install -y openconnect && \
     mkdir -p /root/tonjiak/vcf9/offlinedepot/vpn && \
-    cd /root/tonjiak/vcf9/offlinedepot/vpn/
+    cd /root/tonjiak/vcf9/offlinedepot/vpn/ && \
     echo "#!/bin/bash" > vpn.up.sh  && \
     echo "set -x"  > vpn.up.sh  && \
-    echo "openconnect -u 'ty036880@broadcom.net' --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh portal.vpn.broadcom.com -b" > vpn.up.sh  && \
+    echo "openconnect -u 'ty036880@broadcom.net' \
+     --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh \ 
+     portal.vpn.broadcom.com -b" > vpn.up.sh  && \
     echo "#!/bin/bash" > vpn.down.sh  && \
     echo "set -x"  > vpn.down.sh  && \
     echo "ps aux | grep -v -e defunct -e grep | grep  openconnect" > vpn.down.sh  && \
