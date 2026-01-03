@@ -48,8 +48,6 @@ RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
 # Set a working directory
 WORKDIR /root
 
-# Clone the repository during build
-RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
 
 # SSH Setup
 RUN mkdir -p /var/run/sshd && \
@@ -68,6 +66,8 @@ COPY ansible.cfg /root/
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
     git config --global user.name "teddy" && \
     git config --global credential.helper store
+# Clone the repository during build
+RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
 
 # Install PowerShell
 RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
