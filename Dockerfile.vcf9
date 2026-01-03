@@ -47,7 +47,7 @@ RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias la='ls -A'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
 
-RUN pip3 install ansible
+
 # Set a working directory
 WORKDIR /root
 
