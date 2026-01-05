@@ -1,6 +1,6 @@
 FROM ubuntu:latest  
 ####run it with 
-#docker run -d --name vcf9 -p 443:443 vcf9:latest 
+#docker run --privileged -d --name vcf9 -p 922:22 =p 9443:443 vcf9:latest 
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
