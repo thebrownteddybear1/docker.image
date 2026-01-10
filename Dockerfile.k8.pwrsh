@@ -129,7 +129,7 @@ RUN echo "[defaults]" > /root/ansible.cfg && \
     echo "" >> /root/ansible.cfg && \
     echo "[connection]" >> /root/ansible.cfg && \
     echo "pipelining = True" >> /root/ansible.cfg; 
-ENV "git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git"
+#ENV "git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git"
 RUN cd /root; git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
     cp /root/ansible.cfg /root/tonjiak/ && \
     ansible-galaxy collection install community.vmware --upgrade
