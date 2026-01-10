@@ -10,6 +10,7 @@ COPY path/kubectl /usr/local/bin/
 COPY path/kubectl-vsphere /usr/local/bin/
 COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
 COPY vcenter.install.scripts /root/vcenter.install.scripts
+COPY k8 /root/k8
 
 # Update apt and install initial packages
 RUN apt-get update && apt-get install -y \
