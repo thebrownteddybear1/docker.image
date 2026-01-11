@@ -54,6 +54,9 @@ RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias la='ls -A'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
 
+# Unset locale variables to suppress warnings
+RUN echo "unset LANG LC_ALL" >> /root/.bashrc
+
 # Set a working directory
 WORKDIR /root
 
