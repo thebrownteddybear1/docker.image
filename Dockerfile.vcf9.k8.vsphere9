@@ -4,7 +4,7 @@ FROM ubuntu:latest
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Update apt and install initial packages INCLUDING locales
+# Update apt and install initial packages
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
     ca-certificates \
@@ -39,26 +39,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     bash \
     ansible \
-    locales \
     && rm -rf /var/lib/apt/lists/*
-
-# CRITICAL FIX: Proper locale setup with apt-utils
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends apt-utils && \
-    apt-get install -y locales && \
-    # Generate the locale
-    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
-    locale-gen en_US.UTF-8 && \
-    # Update locale configuration
-    update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 && \
-    # Set environment variables
-    echo "export LANG=en_US.UTF-8" >> /etc/profile && \
-    echo "export LC_ALL=en_US.UTF-8" >> /etc/profile
-
-# Set locale environment variables
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US:en
-ENV LC_ALL=en_US.UTF-8
 
 COPY 50-cloud-init.yaml /root/
 COPY path/kubectl /usr/local/bin/
@@ -72,11 +53,6 @@ RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias ll='ls -alF'" >> /root/.bashrc && \
     echo "alias la='ls -A'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
-
-# Set locale in bashrc
-RUN echo "export LANG=en_US.UTF-8" >> /root/.bashrc && \
-    echo "export LANGUAGE=en_US:en" >> /root/.bashrc && \
-    echo "export LC_ALL=en_US.UTF-8" >> /root/.bashrc
 
 # Set a working directory
 WORKDIR /root
