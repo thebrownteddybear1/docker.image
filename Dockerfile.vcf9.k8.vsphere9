@@ -4,11 +4,6 @@ FROM ubuntu:latest
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Set locale variables to prevent warnings
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US:en
-ENV LC_ALL=en_US.UTF-8
-
 # Update apt and install initial packages INCLUDING locales
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
@@ -47,14 +42,23 @@ RUN apt-get update && apt-get install -y \
     locales \
     && rm -rf /var/lib/apt/lists/*
 
-# Generate and set locales - FIXED: Use correct locale name
-RUN locale-gen en_US.UTF-8 && \
-    update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+# CRITICAL FIX: Proper locale setup with apt-utils
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends apt-utils && \
+    apt-get install -y locales && \
+    # Generate the locale
+    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
+    locale-gen en_US.UTF-8 && \
+    # Update locale configuration
+    update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 && \
+    # Set environment variables
+    echo "export LANG=en_US.UTF-8" >> /etc/profile && \
+    echo "export LC_ALL=en_US.UTF-8" >> /etc/profile
 
-# Also create /etc/default/locale file explicitly
-RUN echo "LANG=en_US.UTF-8" > /etc/default/locale && \
-    echo "LANGUAGE=en_US:en" >> /etc/default/locale && \
-    echo "LC_ALL=en_US.UTF-8" >> /etc/default/locale
+# Set locale environment variables
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 COPY 50-cloud-init.yaml /root/
 COPY path/kubectl /usr/local/bin/
@@ -69,7 +73,7 @@ RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias la='ls -A'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
 
-# Set locale in bashrc (ADD THESE LINES)
+# Set locale in bashrc
 RUN echo "export LANG=en_US.UTF-8" >> /root/.bashrc && \
     echo "export LANGUAGE=en_US:en" >> /root/.bashrc && \
     echo "export LC_ALL=en_US.UTF-8" >> /root/.bashrc
