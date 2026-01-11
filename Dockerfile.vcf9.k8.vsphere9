@@ -4,7 +4,12 @@ FROM ubuntu:latest
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Update apt and install initial packages
+# Set locale variables to prevent warnings
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+# Update apt and install initial packages INCLUDING locales
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
     ca-certificates \
@@ -39,7 +44,12 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     bash \
     ansible \
+    locales \  # ADD THIS LINE
     && rm -rf /var/lib/apt/lists/*
+
+# Generate and set locales (ADD THESE LINES)
+RUN locale-gen en_US.UTF-8 && \
+    update-locale LANG=en_US.UTF-8
 
 COPY 50-cloud-init.yaml /root/
 COPY path/kubectl /usr/local/bin/
@@ -54,10 +64,13 @@ RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias la='ls -A'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
 
+# Set locale in bashrc (ADD THESE LINES)
+RUN echo "export LANG=en_US.UTF-8" >> /root/.bashrc && \
+    echo "export LANGUAGE=en_US:en" >> /root/.bashrc && \
+    echo "export LC_ALL=en_US.UTF-8" >> /root/.bashrc
 
 # Set a working directory
 WORKDIR /root
-
 
 # SSH Setup
 RUN mkdir -p /var/run/sshd && \
@@ -76,6 +89,7 @@ COPY ansible.cfg /root/
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
     git config --global user.name "teddy" && \
     git config --global credential.helper store
+
 # Clone the repository during build
 RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
 
@@ -111,8 +125,10 @@ RUN apt install -y openconnect && \
     echo "ps aux | grep -v -e defunct -e grep | grep  openconnect" > vpn.down.sh  && \
     chmod +x vpn.up.sh  && \
     chmod +x vpn.down.sh
+
 # Explicitly set permissions
 RUN chmod +x /usr/local/bin/start.sh
+
 # Expose ports
 EXPOSE 22
 EXPOSE 443
