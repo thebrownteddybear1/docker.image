@@ -36,14 +36,21 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     python3 \ 
     python3-pip \
+    python3-requests \
+    python3-aiohttp \
     bash \
     ansible \
     && rm -rf /var/lib/apt/lists/*
 
-# ===== NEW: INSTALL VMWARE ANSIBLE DEPENDENCIES =====
-RUN pip3 install --no-cache-dir requests && \
-    ansible-galaxy collection install vmware.vmware_rest community.vmware
-# ====================================================
+# ===== THE PROPER WAY: SYSTEM-MANAGED ANSIBLE & COLLECTIONS =====
+# 1. We installed python3-requests and python3-aiohttp via apt above.
+# 2. Install collections to a global path that Ansible checks by default.
+RUN mkdir -p /usr/share/ansible/collections && \
+    ansible-galaxy collection install vmware.vmware_rest community.vmware -p /usr/share/ansible/collections
+
+# Ensure Ansible environment is aware of the collection path
+ENV ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
+# ==========================================================
 
 COPY 50-cloud-init.yaml /root/
 COPY path/kubectl /usr/local/bin/
@@ -92,7 +99,7 @@ RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsof
     apt-get update && \
     apt-get install -y powershell
 
-# Create the startup script in a system path
+# Create the startup script
 RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
     echo 'mkdir -p /var/run/sshd' >> /usr/local/bin/start.sh && \
     echo '/usr/sbin/sshd -D &' >> /usr/local/bin/start.sh && \
@@ -103,18 +110,18 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
     echo 'echo "Webserver script executed."' >> /usr/local/bin/start.sh && \
     echo 'tail -f /dev/null' >> /usr/local/bin/start.sh
 
-# broadcom vpn
+# broadcom vpn setup
 RUN apt install -y openconnect && \
     mkdir -p /root/tonjiak/vcf9/offlinedepot/vpn && \
     cd /root/tonjiak/vcf9/offlinedepot/vpn/ && \
     echo "#!/bin/bash" > vpn.up.sh  && \
-    echo "set -x"  > vpn.up.sh  && \
+    echo "set -x"  >> vpn.up.sh  && \
     echo "openconnect -u 'ty036880@broadcom.net' \
      --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh \ 
-     portal.vpn.broadcom.com -b" > vpn.up.sh  && \
+     portal.vpn.broadcom.com -b" >> vpn.up.sh  && \
     echo "#!/bin/bash" > vpn.down.sh  && \
-    echo "set -x"  > vpn.down.sh  && \
-    echo "ps aux | grep -v -e defunct -e grep | grep  openconnect" > vpn.down.sh  && \
+    echo "set -x"  >> vpn.down.sh  && \
+    echo "ps aux | grep -v -e defunct -e grep | grep openconnect | awk '{print \$2}' | xargs kill -9" >> vpn.down.sh && \
     chmod +x vpn.up.sh  && \
     chmod +x vpn.down.sh
 
