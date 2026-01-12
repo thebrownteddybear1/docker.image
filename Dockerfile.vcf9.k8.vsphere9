@@ -1,6 +1,5 @@
 FROM ubuntu:latest  
-####run it with 
-#docker run --privileged -d --name vcf9 -p 922:22 =p 9443:443 vcf9:latest 
+
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -41,6 +40,11 @@ RUN apt-get update && apt-get install -y \
     ansible \
     && rm -rf /var/lib/apt/lists/*
 
+# ===== NEW: INSTALL VMWARE ANSIBLE DEPENDENCIES =====
+RUN pip3 install --no-cache-dir requests && \
+    ansible-galaxy collection install vmware.vmware_rest community.vmware
+# ====================================================
+
 COPY 50-cloud-init.yaml /root/
 COPY path/kubectl /usr/local/bin/
 COPY path/kubectl-vsphere /usr/local/bin/
@@ -69,7 +73,7 @@ RUN mkdir -p /var/run/sshd && \
     mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh
 
-# Copy your application files (Ensure 'ovftool' and 'ansible.cfg' exist in your build folder)
+# Copy your application files
 COPY ovftool /root/ovftool
 COPY ansible.cfg /root/
 
@@ -99,7 +103,7 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
     echo 'echo "Webserver script executed."' >> /usr/local/bin/start.sh && \
     echo 'tail -f /dev/null' >> /usr/local/bin/start.sh
 
-#broadcom vpn
+# broadcom vpn
 RUN apt install -y openconnect && \
     mkdir -p /root/tonjiak/vcf9/offlinedepot/vpn && \
     cd /root/tonjiak/vcf9/offlinedepot/vpn/ && \
