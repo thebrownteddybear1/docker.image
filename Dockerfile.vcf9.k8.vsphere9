@@ -100,7 +100,12 @@ RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsof
     apt-get install -y powershell
 RUN echo "source /usr/share/bash-completion/bash_completion" >> /root/.bashrc && \
     echo 'source <(kubectl completion bash)' >> /root/.bashrc
-    
+
+#install k9s
+RUN wget https://github.com/derailed/k9s/releases/download/v0.50.18/k9s_Linux_amd64.tar.gz && \
+    tar xvf k9s_Linux_amd64.tar.gz && \
+    cp k9s /usr/local/bin
+
 # Create the startup script
 RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
     echo 'mkdir -p /var/run/sshd' >> /usr/local/bin/start.sh && \
