@@ -1,12 +1,14 @@
 FROM frrouting/frr:latest
 
-# Install additional packages for VLAN setup
-RUN apt-get update && apt-get install -y \
+# Install additional packages for VLAN setup (Alpine Linux uses apk)
+RUN apk update && apk add --no-cache \
     iproute2 \
     vlan \
     kmod \
     net-tools \
-    && rm -rf /var/lib/apt/lists/*
+    iputils \
+    vim \
+    bash
 
 # Copy our custom configuration
 COPY frr.conf /etc/frr/frr.conf
