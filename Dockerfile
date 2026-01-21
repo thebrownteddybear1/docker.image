@@ -1,137 +1,112 @@
-FROM python:3.12-slim-bullseye
-#FROM python:3.10-slim-bullseye
+FROM ubuntu:latest
 
-# Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Copy your application files
-COPY 50-cloud-init.yaml /root/
-COPY path/kubectl /usr/local/bin/
-COPY path/kubectl-vsphere /usr/local/bin/
-COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
-COPY vcenter.install.scripts /root/vcenter.install.scripts
-
-# Update apt and install initial packages
+# Install required packages
 RUN apt-get update && apt-get install -y \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release \
-    tree \
-    nano \
-    openssh-server \
-    iproute2 \
-    iputils-ping \
-    net-tools \
-    git \
-    ssh \
-    sudo \
-    bash-completion \
-    vim \
-    sshpass \
-    openssl \
-    tcpdump \
     wget \
-    perl \
-    netplan.io \
-    frr \
-    dnsmasq \
-    gzip \
-    zip \
-    python3-pip \
-    locales \
-    bash \
+    gnupg2 \
+    software-properties-common \
+    iproute2 \
+    vlan \
+    kmod \
+    net-tools \
+    iputils-ping \
+    curl \
     && rm -rf /var/lib/apt/lists/*
- #   git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git
 
-# Generate locale
-RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
-    locale-gen en_US.UTF-8
+# Add FRR repository and install FRR
+RUN wget -O /etc/apt/trusted.gpg.d/frr.gpg https://deb.frrouting.org/frr.gpg && \
+    echo "deb https://deb.frrouting.org/frr $(lsb_release -s -c) frr-stable" > /etc/apt/sources.list.d/frr.list && \
+    apt-get update && apt-get install -y frr frr-pythontools
 
-# Set locale environment variables
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US:en
-ENV LC_ALL=en_US.UTF-8
+# Enable IP forwarding in kernel
+RUN echo "net.ipv4.conf.all.forwarding=1" >> /etc/sysctl.conf && \
+    echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf
 
-# 重要：创建 python 符号链接
-RUN ln -sf /usr/bin/python3 /usr/bin/python
+# Create FRR configuration directory
+RUN mkdir -p /etc/frr
 
-# 更简单的 Ansible 安装方式（使用 pip）
-RUN pip install --upgrade pip && \
-    pip install ansible && \
-    pip install requests && \
-    pip install pyvmomi && \
-    pip install pyvim && \
-    pip install aiohttp aiohttp-retry
+# Create frr.conf with the provided configuration
+RUN cat << 'EOF' > /etc/frr/frr.conf
+!
+frr version 8.4.4
+frr defaults traditional
+hostname ubuntu
+log syslog informational
+service integrated-vtysh-config
+!
+debug zebra events
+debug zebra packet
+debug zebra kernel
+debug zebra rib detailed
+debug zebra nht
+debug zebra dplane detailed
+debug zebra dplane dpdk detailed
+debug zebra nexthop
+!
+password frr
+enable password frr
+!
+exit
+!
+router bgp 65001
+ bgp router-id 10.11.11.53
+ no bgp ebgp-requires-policy
+ neighbor 10.11.11.253 remote-as 65002
+ neighbor 10.11.11.253 disable-connected-check
+ neighbor 10.11.11.253 timers connect 10
+ !
+ address-family ipv4 unicast
+  network 192.168.50.0/24
+  redistribute connected
+  redistribute static
+  neighbor 10.11.11.253 next-hop-self
+  neighbor 10.11.11.253 soft-reconfiguration inbound
+  neighbor 10.11.11.253 prefix-list allowed in
+  neighbor 10.11.11.253 prefix-list allowed out
+ exit-address-family
+exit
+!
+ip prefix-list allowed seq 5 permit any
+!
+ip nht resolve-via-default
+!
+end
+EOF
 
+# Enable zebra and bgpd in daemons file
+RUN sed -i 's/^zebra=no/zebra=yes/' /etc/frr/daemons && \
+    sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
 
-# 安装 Ansible collections
-# community.vmware 可以从 Galaxy 安装
-# vmware.ansible_for_nsxt 需要从 GitHub 安装
-RUN ansible-galaxy collection install community.vmware && \
-    ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git && \
-    ansible-galaxy collection install git+https://github.com/vmware/ansible-for-nsxt.git,v3.2.0 && \
-    ansible-galaxy collection install community.general && \
-    ansible-galaxy collection install ansible.posix && \
-    ansible-galaxy collection install vmware.vmware && \
-    ansible-galaxy collection install vmware.vmware_rest && \
-    ansible-galaxy collection install community.vmware 
+# Create startup script
+RUN cat << 'EOF' > /startup.sh
+#!/bin/bash
 
+# Load 802.1q module on the host (requires privileged container)
+modprobe 8021q
 
-# Install Carvel tools
-RUN echo "install carvel" && \
-    wget -O install.sh https://carvel.dev/install.sh && \
-    chmod +x install.sh && \
-    bash ./install.sh
+# Create VLAN interface on ens33
+ip link add link ens33 name ens33.11 type vlan id 11
 
-# SSH Setup
-RUN mkdir -p /var/run/sshd && \
-    echo 'root:VMware1!VMware1!' | chpasswd && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
-    mkdir -p /root/.ssh && \
-    chmod 700 /root/.ssh
+# Bring up the VLAN interface
+ip link set ens33.11 up
 
-# Extract OVF tool
-RUN cd /root && \
-    unzip VMware-ovftool-5.0.0-24781994-lin.x86_64.zip && \
-    chmod +x /root/ovftool/ovftool
+# Assign IP address to VLAN interface
+ip addr add 10.11.11.53/24 dev ens33.11
 
-# Add OVF tool to PATH
-ENV PATH=$PATH:/root/ovftool
+# Enable IP forwarding (already in sysctl.conf, but apply again)
+sysctl -w net.ipv4.conf.all.forwarding=1
+sysctl -w net.ipv6.conf.all.forwarding=1
 
-# Set a working directory
-WORKDIR /root
+# Start FRR service
+/usr/lib/frr/frrinit.sh start
 
-# Configure git
-RUN git config --global user.email "thebrownteddybear@gmail.com" && \
-    git config --global user.name "Container User"
+# Keep container running
+tail -f /dev/null
+EOF
 
-# Expose SSH port
-EXPOSE 22
+RUN chmod +x /startup.sh
 
-# Create a startup script
-RUN echo '#!/bin/bash' > /start.sh && \
-    echo 'set -e' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo '# 设置 Python 环境' >> /start.sh && \
-    echo 'export PATH=$PATH:/root/ovftool' >> /start.sh && \
-    echo '/usr/sbin/sshd -D &' >> /start.sh && \
-    echo 'tail -f /dev/null' >> /start.sh && \
-    chmod +x /start.sh
-
-ENTRYPOINT ["/start.sh"]
-
-# 创建默认的 ansible.cfg 如果不存在
-RUN echo "[defaults]" > /root/ansible.cfg && \
-    echo "interpreter_python = /usr/bin/python" >> /root/ansible.cfg && \
-    echo "host_key_checking = False" >> /root/ansible.cfg && \
-    echo "" >> /root/ansible.cfg && \
-    echo "[connection]" >> /root/ansible.cfg && \
-    echo "pipelining = True" >> /root/ansible.cfg; 
-ENV CLONE="git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git"
-RUN cd /root; git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
-    cp /root/ansible.cfg /root/tonjiak/ && \
-    ansible-galaxy collection install community.vmware --upgrade
+# Set entrypoint
+ENTRYPOINT ["/startup.sh"]
