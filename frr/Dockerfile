@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     iputils-ping \
     curl \
-    # frr \
-    # frr-pythontools \
+    frr \
+    frr-pythontools \
     systemd \
     && rm -rf /var/lib/apt/lists/*
 
