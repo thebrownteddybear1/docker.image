@@ -1,112 +1,142 @@
-FROM ubuntu:latest
+FROM ubuntu:latest  
 
+# Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install required packages
+# Update apt and install initial packages
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg2 \
-    software-properties-common \
-    iproute2 \
-    vlan \
-    kmod \
-    net-tools \
-    iputils-ping \
+    apt-transport-https \
+    ca-certificates \
     curl \
+    gnupg \
+    lsb-release \
+    tree \
+    nano \
+    openssh-server \
+    iproute2 \
+    iputils-ping \
+    net-tools \
+    git \
+    gh \
+    ssh \
+    sudo \
+    bash-completion \
+    vim \
+    sshpass \
+    openssl \
+    tcpdump \
+    wget \
+    perl \
+    netplan.io \
+    frr \
+    dnsmasq \
+    gzip \
+    zip \
+    unzip \
+    software-properties-common \
+    python3 \ 
+    python3-pip \
+    python3-requests \
+    python3-aiohttp \
+    bash \
+    ansible \
     && rm -rf /var/lib/apt/lists/*
 
-# Add FRR repository and install FRR
-RUN wget -O /etc/apt/trusted.gpg.d/frr.gpg https://deb.frrouting.org/frr.gpg && \
-    echo "deb https://deb.frrouting.org/frr $(lsb_release -s -c) frr-stable" > /etc/apt/sources.list.d/frr.list && \
-    apt-get update && apt-get install -y frr frr-pythontools
+# ===== THE PROPER WAY: SYSTEM-MANAGED ANSIBLE & COLLECTIONS =====
+# 1. We installed python3-requests and python3-aiohttp via apt above.
+# 2. Install collections to a global path that Ansible checks by default.
+RUN mkdir -p /usr/share/ansible/collections && \
+    ansible-galaxy collection install vmware.vmware_rest community.vmware -p /usr/share/ansible/collections
 
-# Enable IP forwarding in kernel
-RUN echo "net.ipv4.conf.all.forwarding=1" >> /etc/sysctl.conf && \
-    echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf
+# Ensure Ansible environment is aware of the collection path
+ENV ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
+# ==========================================================
 
-# Create FRR configuration directory
-RUN mkdir -p /etc/frr
+COPY 50-cloud-init.yaml /root/
+COPY path/kubectl /usr/local/bin/
+COPY path/kubectl-vsphere /usr/local/bin/
+COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
+COPY vcenter.install.scripts /root/vcenter.install.scripts
+COPY k8 /root/k8
 
-# Create frr.conf with the provided configuration
-RUN cat << 'EOF' > /etc/frr/frr.conf
-!
-frr version 8.4.4
-frr defaults traditional
-hostname ubuntu
-log syslog informational
-service integrated-vtysh-config
-!
-debug zebra events
-debug zebra packet
-debug zebra kernel
-debug zebra rib detailed
-debug zebra nht
-debug zebra dplane detailed
-debug zebra dplane dpdk detailed
-debug zebra nexthop
-!
-password frr
-enable password frr
-!
-exit
-!
-router bgp 65001
- bgp router-id 10.11.11.53
- no bgp ebgp-requires-policy
- neighbor 10.11.11.253 remote-as 65002
- neighbor 10.11.11.253 disable-connected-check
- neighbor 10.11.11.253 timers connect 10
- !
- address-family ipv4 unicast
-  network 192.168.50.0/24
-  redistribute connected
-  redistribute static
-  neighbor 10.11.11.253 next-hop-self
-  neighbor 10.11.11.253 soft-reconfiguration inbound
-  neighbor 10.11.11.253 prefix-list allowed in
-  neighbor 10.11.11.253 prefix-list allowed out
- exit-address-family
-exit
-!
-ip prefix-list allowed seq 5 permit any
-!
-ip nht resolve-via-default
-!
-end
-EOF
+# Enable color support for ls in bash
+RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
+    echo "alias ll='ls -alF'" >> /root/.bashrc && \
+    echo "alias la='ls -A'" >> /root/.bashrc && \
+    echo "alias l='ls -CF'" >> /root/.bashrc
 
-# Enable zebra and bgpd in daemons file
-RUN sed -i 's/^zebra=no/zebra=yes/' /etc/frr/daemons && \
-    sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
+# Unset locale variables to suppress warnings
+RUN echo "unset LANG LC_ALL" >> /root/.bashrc
 
-# Create startup script
-RUN cat << 'EOF' > /startup.sh
-#!/bin/bash
+# Set a working directory
+WORKDIR /root
 
-# Load 802.1q module on the host (requires privileged container)
-modprobe 8021q
+# SSH Setup
+RUN mkdir -p /var/run/sshd && \
+    echo 'root:VMware1!VMware1!' | chpasswd && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
+    mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh
 
-# Create VLAN interface on ens33
-ip link add link ens33 name ens33.11 type vlan id 11
+# Copy your application files
+COPY ovftool /root/ovftool
+COPY ansible.cfg /root/
 
-# Bring up the VLAN interface
-ip link set ens33.11 up
+# Git configuration
+RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
+    git config --global user.name "teddy" && \
+    git config --global credential.helper store
 
-# Assign IP address to VLAN interface
-ip addr add 10.11.11.53/24 dev ens33.11
+# Clone the repository during build
+RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
 
-# Enable IP forwarding (already in sysctl.conf, but apply again)
-sysctl -w net.ipv4.conf.all.forwarding=1
-sysctl -w net.ipv6.conf.all.forwarding=1
+# Install PowerShell
+RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
+    dpkg -i packages-microsoft-prod.deb && \
+    rm packages-microsoft-prod.deb && \
+    apt-get update && \
+    apt-get install -y powershell
+RUN echo "source /usr/share/bash-completion/bash_completion" >> /root/.bashrc && \
+    echo 'source <(kubectl completion bash)' >> /root/.bashrc
 
-# Start FRR service
-/usr/lib/frr/frrinit.sh start
+#install k9s
+RUN wget https://github.com/derailed/k9s/releases/download/v0.50.18/k9s_Linux_amd64.tar.gz && \
+    tar xvf k9s_Linux_amd64.tar.gz && \
+    cp k9s /usr/local/bin
 
-# Keep container running
-tail -f /dev/null
-EOF
+# Create the startup script
+RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
+    echo 'mkdir -p /var/run/sshd' >> /usr/local/bin/start.sh && \
+    echo '/usr/sbin/sshd -D &' >> /usr/local/bin/start.sh && \
+    echo 'echo "SSH server starting..."' >> /usr/local/bin/start.sh && \
+    echo 'cd /root/tonjiak/vcf9/offlinedepot/' >> /usr/local/bin/start.sh && \
+    echo 'chmod +x tls.cert.key.sh' >> /usr/local/bin/start.sh && \
+    echo './tls.cert.key.sh' >> /usr/local/bin/start.sh && \
+    echo 'echo "Webserver script executed."' >> /usr/local/bin/start.sh && \
+    echo 'tail -f /dev/null' >> /usr/local/bin/start.sh
 
-RUN chmod +x /startup.sh
+# broadcom vpn setup
+RUN apt install -y openconnect && \
+    mkdir -p /root/tonjiak/vcf9/offlinedepot/vpn && \
+    cd /root/tonjiak/vcf9/offlinedepot/vpn/ && \
+    echo "#!/bin/bash" > vpn.up.sh  && \
+    echo "set -x"  >> vpn.up.sh  && \
+    echo "openconnect -u 'ty036880@broadcom.net' \
+     --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh \ 
+     portal.vpn.broadcom.com -b" >> vpn.up.sh  && \
+    echo "#!/bin/bash" > vpn.down.sh  && \
+    echo "set -x"  >> vpn.down.sh  && \
+    echo "ps aux | grep -v -e defunct -e grep | grep openconnect | awk '{print \$2}' | xargs kill -9" >> vpn.down.sh && \
+    chmod +x vpn.up.sh  && \
+    chmod +x vpn.down.sh
 
-# Set entrypoint
-ENTRYPOINT ["/startup.sh"]
+# Explicitly set permissions
+RUN chmod +x /usr/local/bin/start.sh
+
+# Expose ports
+EXPOSE 22
+EXPOSE 443
+
+ENTRYPOINT ["/usr/local/bin/start.sh"]
