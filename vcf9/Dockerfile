@@ -80,7 +80,6 @@ RUN mkdir -p /var/run/sshd && \
 
 # Copy your application files
 COPY ovftool /root/ovftool
-COPY ansible.cfg /root/
 
 # Git configuration
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
@@ -138,3 +137,4 @@ EXPOSE 22
 EXPOSE 443
 
 ENTRYPOINT ["/usr/local/bin/start.sh"]
+
