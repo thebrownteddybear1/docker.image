@@ -1,6 +1,6 @@
 services:
   dnsmasq:
-    image: dockurr/dnsmasq
+    image: my-dnsmasq-vim
     container_name: dnsmasq
     hostname: dns.corp.internal
     restart: unless-stopped
@@ -8,10 +8,10 @@ services:
       - "53:53/udp"
       - "53:53/tcp"
     volumes:
-      - ./custom-hosts.conf:/etc/dnsmasq.d/custom-hosts.conf:ro
+      # Mount the file from current directory into container
+      - ./custom-hosts.conf:/etc/dnsmasq.d/custom-hosts.conf
     cap_add:
       - NET_ADMIN
-    # Optional: set upstream DNS servers
     environment:
-      - DNS1=1.0.0.1
-      - DNS2=1.1.1.1
+      - DNS1=1.1.1.1
+      - DNS2=8.8.8.8
