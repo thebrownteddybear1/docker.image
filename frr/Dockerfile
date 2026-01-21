@@ -4,7 +4,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install required packages and FRR
 RUN apt-get update && apt-get install -y \
-    systemnd \
     iproute2 \
     vlan \
     kmod \
@@ -13,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     frr \
     frr-pythontools \
+    systemd \
     && rm -rf /var/lib/apt/lists/*
 
 # Enable IP forwarding in kernel
