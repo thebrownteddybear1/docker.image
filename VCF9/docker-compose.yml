@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  vcf9:
+    image: vcf9
+    container_name: vcf9
+    privileged: true
+    ports:
+      - "9443:443"  # Map host port 9443 to container port 443
+      - "922:22"    # Map host port 922 to container port 22
+    restart: unless-stopped
+    volumes:
+      # Add any volume mounts you need here
+      # - ./data:/root/data
+    networks:
+      - vcf9-network
+
+networks:
+  vcf9-network:
+    driver: bridge
