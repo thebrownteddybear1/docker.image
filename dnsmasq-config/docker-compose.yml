@@ -1,14 +1,12 @@
 services:
   dnsmasq:
-    image: my-dnsmasq-vim
+    build: .                         # ← This line tells it to build from the Dockerfile in the current directory
     container_name: dnsmasq
-    hostname: dns.corp.internal
     restart: unless-stopped
     ports:
       - "53:53/udp"
       - "53:53/tcp"
     volumes:
-      # Mount the file from current directory into container
       - ./custom-hosts.conf:/etc/dnsmasq.d/custom-hosts.conf
     cap_add:
       - NET_ADMIN
