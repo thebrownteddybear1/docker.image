@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -12,7 +12,6 @@ RUN apt-get update && apt-get install -y \
     kmod \
     net-tools \
     iputils-ping \
-    systemctl \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -23,8 +22,7 @@ RUN wget -O /etc/apt/trusted.gpg.d/frr.gpg https://deb.frrouting.org/frr.gpg && 
 
 # Enable IP forwarding in kernel
 RUN echo "net.ipv4.conf.all.forwarding=1" >> /etc/sysctl.conf && \
-    echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf && \
-    sysctl -p
+    echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf
 
 # Create FRR configuration directory
 RUN mkdir -p /etc/frr
@@ -102,7 +100,7 @@ sysctl -w net.ipv4.conf.all.forwarding=1
 sysctl -w net.ipv6.conf.all.forwarding=1
 
 # Start FRR service
-systemctl restart frr.service
+/usr/lib/frr/frrinit.sh start
 
 # Keep container running
 tail -f /dev/null
