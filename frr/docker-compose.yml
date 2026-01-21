@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   frr-bgp:
     build: .
-    image: frr  # This names the built image 'frr'
+    image: frr
     container_name: frr-bgp
     privileged: true
     network_mode: "host"

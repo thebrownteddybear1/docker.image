@@ -2,7 +2,7 @@ FROM ubuntu:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install required packages
+# Install required packages and FRR from Ubuntu repositories
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg2 \
@@ -14,12 +14,9 @@ RUN apt-get update && apt-get install -y \
     iputils-ping \
     curl \
     lsb-release \
+    frr \
+    frr-pythontools \
     && rm -rf /var/lib/apt/lists/*
-
-# Add FRR repository and install FRR
-RUN wget -O /etc/apt/trusted.gpg.d/frr.gpg https://deb.frrouting.org/frr.gpg && \
-    echo "deb https://deb.frrouting.org/frr $(lsb_release -s -c) frr-stable" > /etc/apt/sources.list.d/frr.list && \
-    apt-get update && apt-get install -y frr frr-pythontools
 
 # Enable IP forwarding in kernel
 RUN echo "net.ipv4.conf.all.forwarding=1" >> /etc/sysctl.conf && \
