@@ -1,0 +1,2 @@
+after you get frr up using docker compose
+configure vtysh manually by copying the config from /etc/frr/frr.conf file
