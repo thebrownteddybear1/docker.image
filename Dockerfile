@@ -1,11 +1,18 @@
-FROM ubuntu:latest  
+#FROM python:3.12-slim-bullseye
+#FROM python:3.10-slim-bullseye
+#works wtih ansible collection community.vwmare
+FROM python:latest
 
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
+#COPY ansible.cfg /root/
+COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
+
 # Update apt and install initial packages
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
+    wget \
     ca-certificates \
     curl \
     gnupg \
@@ -17,7 +24,6 @@ RUN apt-get update && apt-get install -y \
     iputils-ping \
     net-tools \
     git \
-    gh \
     ssh \
     sudo \
     bash-completion \
@@ -32,45 +38,48 @@ RUN apt-get update && apt-get install -y \
     dnsmasq \
     gzip \
     zip \
-    unzip \
-    software-properties-common \
-    python3 \ 
     python3-pip \
-    python3-requests \
-    python3-aiohttp \
-    bash \
-    ansible \
-    && rm -rf /var/lib/apt/lists/*
+    locales \
+    bash && \
+    rm -rf /var/lib/apt/lists/*
 
-# ===== THE PROPER WAY: SYSTEM-MANAGED ANSIBLE & COLLECTIONS =====
-# 1. We installed python3-requests and python3-aiohttp via apt above.
-# 2. Install collections to a global path that Ansible checks by default.
-RUN mkdir -p /usr/share/ansible/collections && \
-    ansible-galaxy collection install vmware.vmware_rest community.vmware -p /usr/share/ansible/collections
+    # Generate locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen en_US.UTF-8 
 
-# Ensure Ansible environment is aware of the collection path
-ENV ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
-# ==========================================================
 
-COPY 50-cloud-init.yaml /root/
-COPY path/kubectl /usr/local/bin/
-COPY path/kubectl-vsphere /usr/local/bin/
-COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
-COPY vcenter.install.scripts /root/vcenter.install.scripts
-COPY k8 /root/k8
+# Set locale environment variables
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
+# 重要：创建 python 符号链接
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# 更简单的 Ansible 安装方式（使用 pip）
+RUN pip install --upgrade pip && \
+    pip install ansible && \
+    pip install requests && \
+    pip install pyvmomi && \
+    pip install pyvim && \
+    pip install aiohttp aiohttp-retry
+
+
+# 安装 Ansible collections
+# community.vmware 可以从 Galaxy 安装
+# vmware.ansible_for_nsxt 需要从 GitHub 安装
+RUN ansible-galaxy collection install community.vmware && \
+    ansible-galaxy collection install community.general && \
+    ansible-galaxy collection install ansible.posix && \
+    ansible-galaxy collection install vmware.vmware && \
+    ansible-galaxy collection install vmware.vmware_rest && \
+    pip install -r /usr/local/lib/python3.14/site-packages/ansible_collections/community/vmware/requirements.txt
 # Enable color support for ls in bash
 RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias ll='ls -alF'" >> /root/.bashrc && \
     echo "alias la='ls -A'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
-
-# Unset locale variables to suppress warnings
-RUN echo "unset LANG LC_ALL" >> /root/.bashrc
-
-# Set a working directory
-WORKDIR /root
-
+    
 # SSH Setup
 RUN mkdir -p /var/run/sshd && \
     echo 'root:VMware1!VMware1!' | chpasswd && \
@@ -80,63 +89,46 @@ RUN mkdir -p /var/run/sshd && \
     mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh
 
-# Copy your application files
-COPY ovftool /root/ovftool
-COPY ansible.cfg /root/
+# Extract OVF tool
+RUN cd /root && \
+    unzip VMware-ovftool-5.0.0-24781994-lin.x86_64.zip && \
+    chmod +x /root/ovftool/ovftool
 
-# Git configuration
-RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
-    git config --global user.name "teddy" && \
-    git config --global credential.helper store
+# Add OVF tool to PATH
+ENV PATH=$PATH:/root/ovftool
 
-# Clone the repository during build
-RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
+# Set a working directory
+WORKDIR /root
 
-# Install PowerShell
-RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
-    dpkg -i packages-microsoft-prod.deb && \
-    rm packages-microsoft-prod.deb && \
-    apt-get update && \
-    apt-get install -y powershell
-RUN echo "source /usr/share/bash-completion/bash_completion" >> /root/.bashrc && \
-    echo 'source <(kubectl completion bash)' >> /root/.bashrc
+# Configure git
+RUN git config --global user.email "thebrownteddybear@gmail.com" && \
+    git config --global user.name "Container User"
 
-#install k9s
-RUN wget https://github.com/derailed/k9s/releases/download/v0.50.18/k9s_Linux_amd64.tar.gz && \
-    tar xvf k9s_Linux_amd64.tar.gz && \
-    cp k9s /usr/local/bin
-
-# Create the startup script
-RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
-    echo 'mkdir -p /var/run/sshd' >> /usr/local/bin/start.sh && \
-    echo '/usr/sbin/sshd -D &' >> /usr/local/bin/start.sh && \
-    echo 'echo "SSH server starting..."' >> /usr/local/bin/start.sh && \
-    echo 'cd /root/tonjiak/vcf9/offlinedepot/' >> /usr/local/bin/start.sh && \
-    echo 'chmod +x tls.cert.key.sh' >> /usr/local/bin/start.sh && \
-    echo './tls.cert.key.sh' >> /usr/local/bin/start.sh && \
-    echo 'echo "Webserver script executed."' >> /usr/local/bin/start.sh && \
-    echo 'tail -f /dev/null' >> /usr/local/bin/start.sh
-
-# broadcom vpn setup
-RUN apt install -y openconnect && \
-    mkdir -p /root/tonjiak/vcf9/offlinedepot/vpn && \
-    cd /root/tonjiak/vcf9/offlinedepot/vpn/ && \
-    echo "#!/bin/bash" > vpn.up.sh  && \
-    echo "set -x"  >> vpn.up.sh  && \
-    echo "openconnect -u 'ty036880@broadcom.net' \
-     --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh \ 
-     portal.vpn.broadcom.com -b" >> vpn.up.sh  && \
-    echo "#!/bin/bash" > vpn.down.sh  && \
-    echo "set -x"  >> vpn.down.sh  && \
-    echo "ps aux | grep -v -e defunct -e grep | grep openconnect | awk '{print \$2}' | xargs kill -9" >> vpn.down.sh && \
-    chmod +x vpn.up.sh  && \
-    chmod +x vpn.down.sh
-
-# Explicitly set permissions
-RUN chmod +x /usr/local/bin/start.sh
-
-# Expose ports
+# Expose SSH port
 EXPOSE 22
-EXPOSE 443
 
-ENTRYPOINT ["/usr/local/bin/start.sh"]
+# Create a startup script
+RUN echo '#!/bin/bash' > /start.sh && \
+    echo 'set -e' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# 设置 Python 环境' >> /start.sh && \
+    echo 'export ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python' >> /start.sh && \
+    echo 'export PATH=$PATH:/root/ovftool' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# 启动 SSH 服务' >> /start.sh && \
+    echo '/usr/sbin/sshd -D &' >> /start.sh && \
+    echo 'tail -f /dev/null' >> /start.sh && \
+    chmod +x /start.sh
+
+ENTRYPOINT ["/start.sh"]
+
+# 创建默认的 ansible.cfg 如果不存在
+RUN echo "[defaults]" > /root/ansible.cfg && \
+    echo "interpreter_python = /usr/bin/python" >> /root/ansible.cfg && \
+    echo "host_key_checking = False" >> /root/ansible.cfg && \
+    echo "" >> /root/ansible.cfg && \
+    echo "[connection]" >> /root/ansible.cfg && \
+    echo "pipelining = True" >> /root/ansible.cfg; 
+ENV CLONE="git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git"
+RUN cd /root; git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
+    cp /root/ansible.cfg /root/tonjiak/
