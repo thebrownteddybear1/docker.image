@@ -25,8 +25,9 @@ sysctl -w net.ipv4.conf.all.forwarding=1
 sysctl -w net.ipv6.conf.all.forwarding=1
 
 sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
-sudo sed -i "s/^zebra=no/zebra=yes/" /etc/frr/daemons
-systemctl stop frr
+sed -i "s/^zebra=no/zebra=yes/" /etc/frr/daemons
+sed -i 's/^watchfrr=yes/watchfrr=no/' /etc/frr/daemons
+systemctl restart frr
 
 # Start watchfrr in foreground to manage FRR daemons
 #exec /usr/lib/frr/watchfrr -d
