@@ -2,7 +2,7 @@ FROM ubuntu:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install required packages including lsb-release
+# Install required packages
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg2 \
@@ -31,7 +31,6 @@ RUN mkdir -p /etc/frr
 # Create frr.conf with the provided configuration
 RUN cat << 'EOF' > /etc/frr/frr.conf
 !
-frr version 8.4.4
 frr defaults traditional
 hostname ubuntu
 log syslog informational
