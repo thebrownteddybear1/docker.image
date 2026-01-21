@@ -1,0 +1,35 @@
+#
+# FRRouting daemons configuration file
+#
+# The watchdog and zebra daemons are always started.
+#
+watchfrr_enable=yes
+watchfrr_options="-r '/usr/lib/frr/frr restart %s' -s '/usr/lib/frr/frr start %s' -k '/usr/lib/frr/frr stop %s'"
+
+#
+# If this option is set the /etc/init.d/frr script automatically loads
+# the config via "vtysh -b" when the servers are started.
+# Check /etc/pam.d/frr if you intend to use "vtysh"!
+#
+vtysh_enable=yes
+zebra=yes
+bgpd=yes
+ospfd=no
+ospf6d=no
+ripd=no
+ripngd=no
+isisd=no
+pimd=no
+ldpd=no
+nhrpd=no
+eigrpd=no
+babeld=no
+sharpd=no
+pbrd=no
+bfdd=no
+fabricd=no
+vrrpd=no
+
+# Daemon options (optional)
+zebra_options="-A 127.0.0.1 -s 90000000"
+bgpd_options="-A 127.0.0.1"

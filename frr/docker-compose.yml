@@ -1,7 +1,6 @@
 services:
   frr-bgp:
     build: .
-    image: frr
     container_name: frr-bgp
     privileged: true
     network_mode: "host"
