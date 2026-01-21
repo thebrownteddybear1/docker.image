@@ -23,7 +23,7 @@ RUN echo "net.ipv4.conf.all.forwarding=1" >> /etc/sysctl.conf && \
 RUN mkdir -p /etc/frr
 
 # Copy configuration files
-#COPY frr.conf /etc/frr/frr.conf
+COPY frr.conf /etc/frr/frr.conf
 #COPY daemons /etc/frr/daemons
 
 # Set correct permissions
