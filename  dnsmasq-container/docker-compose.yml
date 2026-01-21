@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  dnsmasq:
+    build: .
+    container_name: dnsmasq
+    hostname: dns.corp.internal
+    domainname: corp.internal
+    restart: unless-stopped
+    ports:
+      # Primary DNS port binding
+      - "53:53/udp"
+      - "53:53/tcp"
+      
+      # Alternative: Bind to specific host IP (if you have static IP)
+      # - "192.168.50.100:53:53/udp"
+      # - "192.168.50.100:53:53/tcp"
+      
+      # Alternative: Use different port to avoid conflicts
+      # - "5353:53/udp"
+      # - "5353:53/tcp"
+    volumes:
+      # Mount config files for hot-reload capability
+      - ./config/dnsmasq.conf:/etc/dnsmasq.conf:ro
+      - ./config/hosts.custom:/etc/hosts.custom:ro
+      
+      # Optional: Persistent DNS cache
+      - dnsmasq_cache:/var/cache/dnsmasq
+      
+      # Optional: Log directory
+      - ./logs:/var/log/dnsmasq
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      dns_net:
+        ipv4_address: 172.20.0.53  # Static IP for consistent DNS server address
+    environment:
+      - TZ=UTC
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Dedicated network for DNS
+networks:
+  dns_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1
+
+volumes:
+  dnsmasq_cache:
+    driver: local
