@@ -21,11 +21,10 @@ ip link set ens33.11 up
 ip addr add 10.11.11.53/24 dev ens33.11
 
 # Enable IP forwarding
-echo "Enabling IP forwarding"
 sysctl -w net.ipv4.conf.all.forwarding=1
 sysctl -w net.ipv6.conf.all.forwarding=1
 
 
 # Start watchfrr in foreground to manage FRR daemons
-echo "Starting watchfrr in foreground to manage FRR daemons..."
 exec /usr/lib/frr/watchfrr -d
+cat >/dev/null
