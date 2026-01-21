@@ -5,8 +5,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install dnsmasq + DNS testing tools only (no logging packages)
 RUN apt-get update && apt-get install -y \
     dnsmasq \
-    dnsutils \          # This provides dig and nslookup
-    && rm -rf /var/lib/apt/lists/*
+    dnsutils && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy configuration files
 COPY config/dnsmasq.conf /etc/dnsmasq.conf
