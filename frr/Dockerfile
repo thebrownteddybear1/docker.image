@@ -24,7 +24,7 @@ RUN mkdir -p /etc/frr
 
 # Copy configuration files
 COPY frr.conf /etc/frr/frr.conf
-COPY daemons /etc/frr/daemons
+#COPY daemons /etc/frr/daemons
 
 # Set correct permissions
 RUN chown -R frr:frr /etc/frr && \
