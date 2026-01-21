@@ -1,22 +1,10 @@
-version: '3.8'
-
 services:
   vcf9:
-    image: vcf9
+    build: .  # This tells Docker Compose to build from the Dockerfile in current directory
+    image: vcf9  # Tags the built image as 'vcf9'
     container_name: vcf9
     privileged: true
     ports:
-      - "9443:443"  # Map host port 9443 to container port 443
-      - "922:22"    # Map host port 922 to container port 22
+      - "9443:443"
+      - "922:22"
     restart: unless-stopped
-    # Remove or fix the volumes section if you're getting errors
-    # If you don't need volumes, remove this section entirely
-    # If you need volumes, uncomment and format like this:
-    # volumes:
-    #   - ./data:/root/data
-    networks:
-      - vcf9-network
-
-networks:
-  vcf9-network:
-    driver: bridge
