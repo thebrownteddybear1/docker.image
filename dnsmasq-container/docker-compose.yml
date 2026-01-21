@@ -2,8 +2,6 @@ services:
   dnsmasq:
     build: .
     container_name: dnsmasq
-    hostname: dns.corp.internal
-    domainname: corp.internal
     restart: unless-stopped
     ports:
       - "53:53/udp"
@@ -11,22 +9,5 @@ services:
     volumes:
       - ./config/dnsmasq.conf:/etc/dnsmasq.conf:ro
       - ./config/hosts.custom:/etc/hosts.custom:ro
-      - dnsmasq_cache:/var/cache/dnsmasq
     cap_add:
       - NET_ADMIN
-      - NET_RAW
-    networks:
-      dns_net:
-        ipv4_address: 172.20.0.53
-
-networks:
-  dns_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/24
-          gateway: 172.20.0.1
-
-volumes:
-  dnsmasq_cache:
-    driver: local
