@@ -17,9 +17,9 @@ sysctl -w net.ipv4.conf.all.forwarding=1
 sysctl -w net.ipv6.conf.all.forwarding=1
 
 # Start FRR daemons
-sudo systemctl restart frr.service
+systemctl restart frr.service
 # or on some systems:
-sudo service frr restart
+service frr restart
 
 
 # Keep container running
