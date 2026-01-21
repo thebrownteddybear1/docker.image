@@ -52,12 +52,12 @@ RUN mkdir -p /usr/share/ansible/collections && \
 ENV ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
 # ==========================================================
 
-COPY 50-cloud-init.yaml /root/
-COPY path/kubectl /usr/local/bin/
-COPY path/kubectl-vsphere /usr/local/bin/
-COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
-COPY vcenter.install.scripts /root/vcenter.install.scripts
-COPY k8 /root/k8
+COPY ../50-cloud-init.yaml /root/
+COPY ../path/kubectl /usr/local/bin/
+COPY ../path/kubectl-vsphere /usr/local/bin/
+COPY ../VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
+COPY ../vcenter.install.scripts /root/vcenter.install.scripts
+COPY ../k8 /root/k8
 
 # Enable color support for ls in bash
 RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
