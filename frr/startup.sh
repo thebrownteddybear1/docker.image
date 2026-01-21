@@ -27,7 +27,7 @@ sysctl -w net.ipv6.conf.all.forwarding=1
 sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
 sed -i "s/^zebra=no/zebra=yes/" /etc/frr/daemons
 sed -i 's/^watchfrr=yes/watchfrr=no/' /etc/frr/daemons
-systemctl stop frr
+exec /usr/lib/frr/watchfrr zebra bgpd
 # zebra -d -A 127.0.0.1 -s 90000000
 # bgpd -d -A 127.0.0.1
 
