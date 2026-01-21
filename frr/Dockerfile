@@ -5,8 +5,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install required packages and FRR
 RUN apt-get update && apt-get install -y \
     systemnd \
-    systemd-sysv \
-    dbus \
     iproute2 \
     vlan \
     kmod \
