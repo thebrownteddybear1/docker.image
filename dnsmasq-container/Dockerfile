@@ -2,11 +2,13 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install dnsmasq + DNS testing tools only (no logging packages)
+# Install dnsmasq, DNS testing tools, and systemd
 RUN apt-get update && apt-get install -y \
     dnsmasq \
-    dnsutils && \
-    rm -rf /var/lib/apt/lists/*
+    dnsutils \
+    systemd \
+    systemd-sysv \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy configuration files
 COPY config/dnsmasq.conf /etc/dnsmasq.conf
