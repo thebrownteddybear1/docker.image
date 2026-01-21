@@ -2,7 +2,7 @@ FROM ubuntu:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install required packages
+# Install required packages including lsb-release
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg2 \
@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     iputils-ping \
     curl \
+    lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
 # Add FRR repository and install FRR

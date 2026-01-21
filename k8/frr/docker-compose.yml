@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  frr-bgp:
+    build: .
+    container_name: frr-bgp
+    privileged: true
+    network_mode: "host"
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      # Optional: Mount a custom frr.conf file
+      # - ./frr.conf:/etc/frr/frr.conf:ro
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+      - SYS_ADMIN
