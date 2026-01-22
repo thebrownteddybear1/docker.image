@@ -18,5 +18,12 @@ ip addr add 10.11.11.53/24 dev ens33.11
 sysctl -w net.ipv4.conf.all.forwarding=1
 sysctl -w net.ipv6.conf.all.forwarding=1
 
+# Create vtysh.conf if it doesn't exist
+if [ ! -f /etc/frr/vtysh.conf ]; then
+    touch /etc/frr/vtysh.conf
+    chown frr:frr /etc/frr/vtysh.conf
+    chmod 640 /etc/frr/vtysh.conf
+fi
+
 # Start FRR using the image's default startup script
 exec /usr/lib/frr/docker-start
