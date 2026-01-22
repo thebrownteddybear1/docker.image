@@ -19,7 +19,8 @@ COPY startup.sh /startup.sh
 RUN chmod +x /startup.sh
 
 # Set correct permissions for FRR files
-RUN chown -R frr:frr /etc/frr
+RUN chown -R frr:frr /etc/frr && \
+    touch /etc/frr/vtysh.conf
 
 # Set entrypoint to our startup script
 ENTRYPOINT ["/startup.sh"]
