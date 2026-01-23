@@ -14,6 +14,18 @@ ip link add link ens33 name ens33.11 type vlan id 11
 ip link set ens33.11 up
 ip addr add 10.11.11.53/24 dev ens33.11
 
+# Create VLAN interface on ens33
+ip link add link ens33 name ens33.51 type vlan id 51
+ip link set ens33.51 up
+ip addr add 192.168.51.53/24 dev ens33.51
+
+
+# Create VLAN interface on ens33
+ip link add link ens33 name ens33.51 type vlan id 52
+ip link set ens33.52 up
+ip addr add 192.168.52.53/24 dev ens33.52
+
+
 # Enable IP forwarding
 sysctl -w net.ipv4.conf.all.forwarding=1
 sysctl -w net.ipv6.conf.all.forwarding=1
