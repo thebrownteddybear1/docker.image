@@ -21,7 +21,7 @@ ip addr add 192.168.51.53/24 dev ens33.51
 
 
 # Create VLAN interface on ens33
-ip link add link ens33 name ens33.51 type vlan id 52
+ip link add link ens33 name ens33.52 type vlan id 52
 ip link set ens33.52 up
 ip addr add 192.168.52.53/24 dev ens33.52
 
