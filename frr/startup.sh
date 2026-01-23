@@ -9,22 +9,26 @@ modprobe 8021q
 # Remove existing VLAN interface if it exists
 ip link delete ens33.11 2>/dev/null || true
 
-# Create VLAN interface on ens33
+# Create VLAN interface on ens33 11
 ip link add link ens33 name ens33.11 type vlan id 11
 ip link set ens33.11 up
 ip addr add 10.11.11.53/24 dev ens33.11
 
-# Create VLAN interface on ens33
+# Create VLAN interface on ens33 51
 ip link add link ens33 name ens33.51 type vlan id 51
 ip link set ens33.51 up
 ip addr add 192.168.51.53/24 dev ens33.51
 
 
-# Create VLAN interface on ens33
+# Create VLAN interface on ens33 52
 ip link add link ens33 name ens33.52 type vlan id 52
 ip link set ens33.52 up
 ip addr add 192.168.52.53/24 dev ens33.52
 
+# Create VLAN interface on ens33 53
+ip link add link ens33 name ens33.53 type vlan id 53
+ip link set ens33.53 up
+ip addr add 192.168.53.53/24 dev ens33.53
 
 # Enable IP forwarding
 sysctl -w net.ipv4.conf.all.forwarding=1
