@@ -1,13 +1,16 @@
 services:
   dnsmasq:
-    build: .                         # ← This line tells it to build from the Dockerfile in the current directory
+    build: .
     container_name: dnsmasq
     restart: unless-stopped
     ports:
       - "53:53/udp"
       - "53:53/tcp"
     volumes:
-      - ./custom-hosts.conf:/etc/dnsmasq.d/custom-hosts.conf
+      # Map your host-style file
+      - ./custom-hosts.conf:/etc/dnsmasq.hosts
+      # Map a main config file to tell dnsmasq to use it
+      - ./dnsmasq.conf:/etc/dnsmasq.conf
     cap_add:
       - NET_ADMIN
     environment:
