@@ -10,3 +10,4 @@ systemctl disable ufw
 systemctl stop ufw
 systemctl status ufw
 
+#SET BOTH THE PARENT ENSI AND NFS SERVER TO TRUNK!!!
