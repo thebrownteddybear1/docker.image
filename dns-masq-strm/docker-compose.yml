@@ -15,13 +15,4 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
-    networks:
-      dnsnet:
-        ipv4_address: 172.20.0.2
-
-networks:
-  dnsnet:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/24
+    network_mode: "host"  # Uses host network stack
