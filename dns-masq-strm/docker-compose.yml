@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  dnsmasq:
+    image: strm/dnsmasq:2.90
+    container_name: dnsmasq
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    environment:
+      DNSMASQ_CONF: /etc/dnsmasq.conf
+    volumes:
+      - ./dnsmasq.conf:/etc/dnsmasq.conf:ro
+      - ./custom-hosts:/etc/dnsmasq-hosts:ro
+      - ./dnsmasq.leases:/var/lib/misc/dnsmasq.leases
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      dnsnet:
+        ipv4_address: 172.20.0.2
+
+networks:
+  dnsnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
