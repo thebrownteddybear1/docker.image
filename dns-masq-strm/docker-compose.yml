@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   dnsmasq:
-    image: strm/dnsmasq:2.90
+    image: strm/dnsmasq:latest
     container_name: dnsmasq
     restart: unless-stopped
     ports:
