@@ -24,7 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tree \
     nano \
-    openssh-server \
     iproute2 \
     iputils-ping \
     net-tools \
@@ -136,8 +135,6 @@ RUN echo '#!/bin/bash' > /start.sh && \
     echo '    fi' >> /start.sh && \
     echo 'fi' >> /start.sh && \
     echo '' >> /start.sh && \
-    echo '# Start SSH service' >> /start.sh && \
-    echo 'echo "Starting SSH service..."' >> /start.sh && \
     chmod +x /start.sh
 
 
