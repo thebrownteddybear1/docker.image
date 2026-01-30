@@ -5,52 +5,41 @@ services:
     restart: unless-stopped
     network_mode: host
     command: >
-      /bin/bash -c "
-      echo 'Installing Chrony and bash...' &&
+      /bin/sh -c "
+      # Install bash if you want it
       apk add --no-cache chrony bash tzdata &&
-      echo 'Creating chrony configuration...' &&
-      echo 'server 0.pool.ntp.org iburst' > /etc/chrony/chrony.conf &&
-      echo 'server 1.pool.ntp.org iburst' >> /etc/chrony/chrony.conf &&
-      echo 'server 2.pool.ntp.org iburst' >> /etc/chrony/chrony.conf &&
-      echo 'server 3.pool.ntp.org iburst' >> /etc/chrony/chrony.conf &&
-      echo 'server time.cloudflare.com iburst' >> /etc/chrony/chrony.conf &&
-      echo 'server time.google.com iburst' >> /etc/chrony/chrony.conf &&
-      echo '' >> /etc/chrony/chrony.conf &&
-      echo '# Allow access from:' >> /etc/chrony/chrony.conf &&
-      echo 'allow 127.0.0.1' >> /etc/chrony/chrony.conf &&
-      echo 'allow 192.168.0.0/16' >> /etc/chrony/chrony.conf &&
-      echo 'allow 10.0.0.0/8' >> /etc/chrony/chrony.conf &&
-      echo '' >> /etc/chrony/chrony.conf &&
-      echo '# Local stratum if all servers fail' >> /etc/chrony/chrony.conf &&
-      echo 'local stratum 10' >> /etc/chrony/chrony.conf &&
-      echo '' >> /etc/chrony/chrony.conf &&
-      echo '# Configuration files' >> /etc/chrony/chrony.conf &&
-      echo 'driftfile /var/lib/chrony/chrony.drift' >> /etc/chrony/chrony.conf &&
-      echo 'logdir /var/log/chrony' >> /etc/chrony/chrony.conf &&
-      echo '' >> /etc/chrony/chrony.conf &&
-      echo '# Logging' >> /etc/chrony/chrony.conf &&
-      echo 'log measurements statistics tracking' >> /etc/chrony/chrony.conf &&
-      echo '' >> /etc/chrony/chrony.conf &&
-      echo '# Time stepping' >> /etc/chrony/chrony.conf &&
-      echo 'makestep 1.0 3' >> /etc/chrony/chrony.conf &&
-      echo 'rtcsync' >> /etc/chrony/chrony.conf &&
-      echo '' >> /etc/chrony/chrony.conf &&
-      echo 'Setting up directories...' &&
+      
+      # Create chrony configuration
+      cat > /etc/chrony/chrony.conf << 'EOF'
+      server 0.pool.ntp.org iburst
+      server 1.pool.ntp.org iburst
+      server 2.pool.ntp.org iburst
+      server 3.pool.ntp.org iburst
+      server time.cloudflare.com iburst
+      server time.google.com iburst
+      
+      allow 127.0.0.1
+      allow 192.168.0.0/16
+      allow 10.0.0.0/8
+      
+      local stratum 10
+      driftfile /var/lib/chrony/chrony.drift
+      logdir /var/log/chrony
+      log measurements statistics tracking
+      makestep 1.0 3
+      rtcsync
+      EOF
+      
       mkdir -p /var/lib/chrony /var/log/chrony &&
       chown -R chrony:chrony /var/lib/chrony /var/log/chrony &&
-      echo 'Configuration created:' &&
-      cat /etc/chrony/chrony.conf &&
-      echo '' &&
-      echo 'Starting chronyd...' &&
-      chronyd -d -f /etc/chrony/chrony.conf
+      
+      # Now use bash if you installed it
+      /bin/bash -c 'echo \"Starting chronyd with bash...\" && chronyd -d -f /etc/chrony/chrony.conf'
       "
     cap_add:
       - SYS_TIME
       - SYS_NICE
     volumes:
       - /etc/localtime:/etc/localtime:ro
-    tmpfs:
-      - /var/lib/chrony
-      - /var/log/chrony
     environment:
       - TZ=Asia/Singapore
