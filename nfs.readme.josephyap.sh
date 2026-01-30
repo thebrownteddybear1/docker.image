@@ -21,39 +21,34 @@ systemctl restart nfs-kernel-server
 # Sometimes also need:
 systemctl restart rpcbind
 
-
+# Add to /etc/sysctl.conf
 sudo tee -a /etc/sysctl.conf << 'EOF'
 
-# ========================================
-# NFS Server Optimizations
-# ========================================
-# SunRPC/NFS connection settings
-sunrpc.tcp_max_slot_table_entries=128
-sunrpc.udp_slot_table_entries=128
-fs.nfs.nlm_tcpport=32803
-fs.nfs.nfs_callback_tcpport=32764
-fs.nfs.nfs_callback_nr_threads=8
+# NFS Memory Optimizations (for 96GB RAM)
+# Increase NFS read/write buffers
+sunrpc.max_resvport=1023
+sunrpc.min_resvport=665
 
-# Network buffers for better throughput
-net.core.rmem_max=16777216
-net.core.wmem_max=16777216
-net.core.rmem_default=16777216
-net.core.wmem_default=16777216
-net.ipv4.tcp_rmem=4096 87380 16777216
-net.ipv4.tcp_wmem=4096 65536 16777216
+# Increase NFS client memory
+fs.nfs.nfs_callback_nr_threads=16
+fs.nfs.nfs_mountpoint_timeout=300
 
-# VM settings optimized for large RAM (100GB)
-vm.swappiness=10
-vm.dirty_ratio=20
-vm.dirty_background_ratio=5
-vm.vfs_cache_pressure=50
+# More aggressive caching
+vm.dirty_background_bytes=67108864  # 64MB
+vm.dirty_bytes=1073741824           # 1GB
+vm.dirty_expire_centisecs=6000      # 60 seconds
+vm.dirty_writeback_centisecs=500    # 5 seconds
+
+# More file handles for many clients
+fs.file-max=2097152
+fs.nr_open=2097152
 EOF
 
 sudo sysctl -p
-sudo sed -i '/^\[nfsd\]/,/^\[/ s/^threads=.*/threads=20/' /etc/nfs.conf
 
-systemctl restart nfs-server
-
+# Change to 24 threads (from current 18-20)
+sudo sed -i '/^\[nfsd\]/,/^\[/ s/^threads=.*/threads=24/' /etc/nfs.conf
+sudo systemctl restart nfs-server
 ##monitor nfs
 cat > /root/nfs_monitor.sh << 'EOF'
 #!/bin/bash
@@ -107,3 +102,19 @@ chmod +x /root/nfs_monitor.sh
 
 # Run it
 watch -n 2 /root/nfs_monitor.sh
+
+
+cat > /root/check_memory.sh << 'EOF'
+#!/bin/bash
+echo "=== Memory Utilization ==="
+free -h
+echo ""
+echo "=== Page Cache Stats ==="
+grep -E "(Dirty|Writeback|Cached|Buffers|MemTotal|MemFree)" /proc/meminfo
+echo ""
+echo "=== Top Memory Users ==="
+ps aux --sort=-%mem | head -10
+EOF
+
+chmod +x /root/check_memory.sh
+/root/check_memory.sh
