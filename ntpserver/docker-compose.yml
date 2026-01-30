@@ -6,22 +6,28 @@ services:
     network_mode: host
     command: >
       /bin/sh -c "
-      apk add --no-cache chrony &&
-      echo 'server 0.pool.ntp.org iburst' > /etc/chrony/chrony.conf
-      echo 'server 1.pool.ntp.org iburst' >> /etc/chrony/chrony.conf
-      echo 'server 2.pool.ntp.org iburst' >> /etc/chrony/chrony.conf
-      echo 'server 3.pool.ntp.org iburst' >> /etc/chrony/chrony.conf
-      echo 'allow 127.0.0.1' >> /etc/chrony/chrony.conf
-      echo 'allow 192.168.0.0/16' >> /etc/chrony/chrony.conf
-      echo 'allow 10.0.0.0/8' >> /etc/chrony/chrony.conf
-      echo 'local stratum 10' >> /etc/chrony/chrony.conf
+      # Install chrony
+      apk add --no-cache chrony
+      
+      # Create config file
+      {
+        echo 'server 0.pool.ntp.org iburst'
+        echo 'server 1.pool.ntp.org iburst'
+        echo 'server 2.pool.ntp.org iburst'
+        echo 'server 3.pool.ntp.org iburst'
+        echo 'allow 127.0.0.1'
+        echo 'allow 192.168.0.0/16'
+        echo 'allow 10.0.0.0/8'
+        echo 'local stratum 10'
+        echo 'driftfile /var/lib/chrony/chrony.drift'
+      } > /etc/chrony/chrony.conf
+      
+      # Create directory
       mkdir -p /var/lib/chrony
       
-      # Start chronyd in background
+      # Start chronyd and sleep forever
       chronyd -f /etc/chrony/chrony.conf
-      
-      # Keep container running
-      tail -f /dev/null
+      sleep infinity
       "
     cap_add:
       - SYS_TIME
