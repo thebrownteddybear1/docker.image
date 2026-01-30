@@ -43,7 +43,6 @@ git clone git@github.com:thebrownteddybear1/docker.image.git
 apt install gh
 echo "thebrownteddybear@gmail.com, H@1!"
 echo "token"
-echo  removeme.from.here.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
 
 gh augh logout
 gh auth login
