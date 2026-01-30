@@ -1,16 +1,15 @@
-#FROM python:3.12-slim-bullseye
-#FROM python:3.10-slim-bullseye
-#works wtih ansible collection community.vwmare
-#FROM python:latest
 FROM ubuntu:22.04
 
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-#COPY ansible.cfg /root/
 COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
 
-# Update apt and install initial packages
+# Fix apt sources for better connectivity
+RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+
+# Update apt and install packages (NO SSH but with netplan)
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
     wget \
@@ -20,83 +19,68 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     tree \
     nano \
-    openssh-server \
     iproute2 \
     iputils-ping \
     net-tools \
     git \
-    ssh \
     sudo \
     bash-completion \
     vim \
     sshpass \
     openssl \
     tcpdump \
-    wget \
     perl \
-    netplan.io \
-    frr \
-    dnsmasq \
     gzip \
-    zip \
+    unzip \
     python3-pip \
     locales \
-    bash && \
-    rm -rf /var/lib/apt/lists/*
+    bash \
+    dnsutils \
+    python3 \
+    python3-venv \
+    netcat-openbsd \
+    netplan.io \
+    network-manager \
+    && rm -rf /var/lib/apt/lists/*
 
-
-# Install GitHub CLI separately (after apt install)
-RUN type -p curl >/dev/null || apt-get install curl -y && \
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+# Install GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
     && apt-get update \
     && apt-get install gh -y
-    # Generate locale
-RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
-    locale-gen en_US.UTF-8 
 
+# Generate locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen en_US.UTF-8
 
 # Set locale environment variables
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-# 重要：创建 python 符号链接
+# Create python symlink
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
-# 更简单的 Ansible 安装方式（使用 pip）
+# Upgrade pip and install Python packages
 RUN pip install --upgrade pip && \
     pip install ansible && \
     pip install requests && \
     pip install pyvmomi && \
-    pip install pyvim && \
     pip install aiohttp aiohttp-retry
 
-
-# 安装 Ansible collections
-# community.vmware 可以从 Galaxy 安装
-# vmware.ansible_for_nsxt 需要从 GitHub 安装
+# Install Ansible collections
 RUN ansible-galaxy collection install community.vmware && \
     ansible-galaxy collection install community.general && \
     ansible-galaxy collection install ansible.posix && \
-    ansible-galaxy collection install vmware.vmware && \
     ansible-galaxy collection install vmware.vmware_rest && \
-    pip install -r /usr/local/lib/python3.14/site-packages/ansible_collections/community/vmware/requirements.txt
+    pip install -r /usr/local/lib/python3.10/dist-packages/ansible_collections/community/vmware/requirements.txt
+
 # Enable color support for ls in bash
 RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
     echo "alias ll='ls -alF'" >> /root/.bashrc && \
     echo "alias la='ls -A'" >> /root/.bashrc && \
     echo "alias l='ls -CF'" >> /root/.bashrc
-    
-# SSH Setup
-RUN mkdir -p /var/run/sshd && \
-    echo 'root:VMware1!VMware1!' | chpasswd && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
-    mkdir -p /root/.ssh && \
-    chmod 700 /root/.ssh
 
 # Extract OVF tool
 RUN cd /root && \
@@ -106,38 +90,47 @@ RUN cd /root && \
 # Add OVF tool to PATH
 ENV PATH=$PATH:/root/ovftool
 
-# Set a working directory
+# Set working directory
 WORKDIR /root
 
 # Configure git
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \
     git config --global user.name "Container User"
 
-# Expose SSH port
-EXPOSE 22
-
-# Create a startup script
-RUN echo '#!/bin/bash' > /start.sh && \
-    echo 'set -e' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo '# 设置 Python 环境' >> /start.sh && \
-    echo 'export ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python' >> /start.sh && \
-    echo 'export PATH=$PATH:/root/ovftool' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo '# 启动 SSH 服务' >> /start.sh && \
-    echo '/usr/sbin/sshd -D &' >> /start.sh && \
-    echo 'tail -f /dev/null' >> /start.sh && \
-    chmod +x /start.sh
-
-ENTRYPOINT ["/start.sh"]
-
-# 创建默认的 ansible.cfg 如果不存在
+# Create default ansible.cfg
 RUN echo "[defaults]" > /root/ansible.cfg && \
     echo "interpreter_python = /usr/bin/python" >> /root/ansible.cfg && \
     echo "host_key_checking = False" >> /root/ansible.cfg && \
     echo "" >> /root/ansible.cfg && \
     echo "[connection]" >> /root/ansible.cfg && \
-    echo "pipelining = True" >> /root/ansible.cfg; 
-ENV CLONE="git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git"
-RUN cd /root; git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git && \
-    cp /root/ansible.cfg /root/tonjiak/
+    echo "pipelining = True" >> /root/ansible.cfg
+
+# Clone repository during build
+RUN cd /root && git clone https://github.com/thebrownteddybear1/tonjiak.git || echo "Already cloned or failed"
+
+# Create startup script WITHOUT SSH
+RUN echo '#!/bin/bash' > /start.sh && \
+    echo 'set -e' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Fix DNS' >> /start.sh && \
+    echo 'echo "nameserver 8.8.8.8" > /etc/resolv.conf' >> /start.sh && \
+    echo 'echo "nameserver 1.1.1.1" >> /etc/resolv.conf' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Test network' >> /start.sh && \
+    echo 'if ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then' >> /start.sh && \
+    echo '    echo "Network connectivity OK"' >> /start.sh && \
+    echo 'else' >> /start.sh && \
+    echo '    echo "Warning: Network connectivity failed"' >> /start.sh && \
+    echo 'fi' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Set Python environment' >> /start.sh && \
+    echo 'export ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python' >> /start.sh && \
+    echo 'export PATH=$PATH:/root/ovftool' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Keep container running' >> /start.sh && \
+    echo 'echo "Container is running..."' >> /start.sh && \
+    echo 'tail -f /dev/null' >> /start.sh && \
+    chmod +x /start.sh
+
+# Use the startup script
+CMD ["/start.sh"]
