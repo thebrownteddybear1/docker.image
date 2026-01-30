@@ -9,7 +9,7 @@ systemctl restart nfs-kernel-server
 systemctl disable ufw
 systemctl stop ufw
 systemctl status ufw
-
+sudo apt install net-tools -y
 #SET BOTH THE PARENT ENSI AND NFS SERVER TO TRUNK!!!
 
 #after you change something restart nfs
