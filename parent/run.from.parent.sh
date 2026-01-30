@@ -37,3 +37,11 @@ sudo systemctl restart sshd
 cd /root
 git clone git@github.com:thebrownteddybear1/docker.image.git
 
+
+# install gh 
+apt install gh
+echo "thebrownteddybear@gmail.com, H@1!"
+echo "token"
+echo  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
+
+gh auth login
