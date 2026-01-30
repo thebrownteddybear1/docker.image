@@ -138,7 +138,6 @@ RUN echo '#!/bin/bash' > /start.sh && \
     echo '' >> /start.sh && \
     echo '# Start SSH service' >> /start.sh && \
     echo 'echo "Starting SSH service..."' >> /start.sh && \
-    echo 'exec /usr/sbin/sshd -D' >> /start.sh && \
     chmod +x /start.sh
 
 
