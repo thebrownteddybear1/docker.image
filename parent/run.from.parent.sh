@@ -41,7 +41,7 @@ git clone git@github.com:thebrownteddybear1/docker.image.git
 # install gh 
 #
 apt install gh
-
-gh augh logout
-gh auth login
+echo "thebrownteddybear@gmail.com, H@1!"
+echo "token"
+echo  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
 
