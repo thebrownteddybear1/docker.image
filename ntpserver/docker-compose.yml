@@ -1,40 +1,14 @@
 services:
-  chrony-ntp:
-    image: alpine:latest
-    container_name: chrony-ntp-server
+  ntp:
+    image: cturra/ntp:latest
+    container_name: ntp-server
     restart: unless-stopped
-    network_mode: host
-    command: >
-      /bin/sh -c "
-      # Install chrony
-      apk update && apk add --no-cache chrony
-      
-      # Create chrony config using echo statements
-      echo 'server 0.pool.ntp.org iburst' > /etc/chrony/chrony.conf
-      echo 'server 1.pool.ntp.org iburst' >> /etc/chrony/chrony.conf
-      echo 'server 2.pool.ntp.org iburst' >> /etc/chrony/chrony.conf
-      echo 'server 3.pool.ntp.org iburst' >> /etc/chrony/chrony.conf
-      echo 'server time.cloudflare.com iburst' >> /etc/chrony/chrony.conf
-      echo 'allow 127.0.0.1' >> /etc/chrony/chrony.conf
-      echo 'allow 192.168.0.0/16' >> /etc/chrony/chrony.conf
-      echo 'allow 10.0.0.0/8' >> /etc/chrony/chrony.conf
-      echo 'local stratum 10' >> /etc/chrony/chrony.conf
-      echo 'driftfile /var/lib/chrony/chrony.drift' >> /etc/chrony/chrony.conf
-      
-      # Create directory
-      mkdir -p /var/lib/chrony
-      
-      # Start chronyd in foreground and sleep
-      echo 'Starting chronyd...'
-      chronyd -f /etc/chrony/chrony.conf
-      
-      # Keep container alive
-      exec tail -f /dev/null
-      "
+    ports:
+      - "123:123/udp"
     cap_add:
       - SYS_TIME
-      - SYS_NICE
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
     environment:
+      - NTP_SERVERS=0.pool.ntp.org,1.pool.ntp.org,2.pool.ntp.org,3.pool.ntp.org
+      - NTP_ALLOW=127.0.0.1 192.168.0.0/16 10.0.0.0/8
+      - LOG_LEVEL=1
       - TZ=Asia/Singapore
