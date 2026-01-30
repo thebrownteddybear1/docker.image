@@ -40,12 +40,4 @@ git clone git@github.com:thebrownteddybear1/docker.image.git
 # install gh 
 #
 apt install gh
-echo "thebrownteddybear@gmail.com, H@1!"
-echo "token"
-echo  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
-
-echo "click on the urls"
-echo "    https://github.com/thebrownteddybear1/docker.image/security/secret-scanning/unblock-secret/38yAr944i6BkC1zkd9R6v9haRLM
-
-    https://github.com/thebrownteddybear1/docker.image/security/secret-scanning/unblock-secret/38yBKZoLLMq9Z9qWCJesjPy4b6s"
 
