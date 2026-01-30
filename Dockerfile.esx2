@@ -1,0 +1,150 @@
+# Use Ubuntu 22.04 LTS (stable, good networking)
+FROM ubuntu:22.04
+
+# Set non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Copy OVF tool
+COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root
+
+# Fix apt sources for better connectivity (use mirrors)
+RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+
+# Update apt and install essential packages in stages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    gnupg \
+    lsb-release \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install remaining packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tree \
+    nano \
+    openssh-server \
+    iproute2 \
+    iputils-ping \
+    net-tools \
+    git \
+    openssh-client \
+    sudo \
+    bash-completion \
+    vim \
+    sshpass \
+    openssl \
+    tcpdump \
+    perl \
+    gzip \
+    unzip \
+    python3 \
+    python3-pip \
+    python3-venv \
+    locales \
+    bash \
+    dnsutils \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Generate locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen en_US.UTF-8
+
+# Set locale environment variables
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+# Create python symlink
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# Upgrade pip and install Python packages
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir \
+    ansible \
+    requests \
+    pyvmomi \
+    aiohttp \
+    aiohttp-retry
+
+# Install Ansible collections
+RUN ansible-galaxy collection install community.vmware && \
+    ansible-galaxy collection install community.general && \
+    ansible-galaxy collection install ansible.posix && \
+    ansible-galaxy collection install vmware.vmware_rest
+
+# Install collection requirements
+RUN pip3 install --no-cache-dir -r /usr/local/lib/python3.10/dist-packages/ansible_collections/community/vmware/requirements.txt
+
+# Enable color support for ls in bash
+RUN echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
+    echo "alias ll='ls -alF'" >> /root/.bashrc && \
+    echo "alias la='ls -A'" >> /root/.bashrc && \
+    echo "alias l='ls -CF'" >> /root/.bashrc
+
+
+# Extract OVF tool
+RUN cd /root && \
+    unzip -q VMware-ovftool-5.0.0-24781994-lin.x86_64.zip && \
+    chmod +x /root/ovftool/ovftool && \
+    rm VMware-ovftool-5.0.0-24781994-lin.x86_64.zip
+
+# Add OVF tool to PATH
+ENV PATH="$PATH:/root/ovftool"
+
+# Set working directory
+WORKDIR /root
+
+# Configure git (use placeholder - set real credentials at runtime)
+RUN git config --global user.email "thebrownteddybear@gmail.com" && \
+    git config --global user.name "Container User"
+
+
+
+# Create a startup script with networking fixes
+RUN echo '#!/bin/bash' > /start.sh && \
+    echo 'set -e' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Fix DNS configuration' >> /start.sh && \
+    echo 'echo "nameserver 8.8.8.8" > /etc/resolv.conf' >> /start.sh && \
+    echo 'echo "nameserver 1.1.1.1" >> /etc/resolv.conf' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Wait for network to be ready' >> /start.sh && \
+    echo 'for i in {1..30}; do' >> /start.sh && \
+    echo '    if ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then' >> /start.sh && \
+    echo '        echo "Network connectivity OK"' >> /start.sh && \
+    echo '        break' >> /start.sh && \
+    echo '    fi' >> /start.sh && \
+    echo '    if [ $i -eq 30 ]; then' >> /start.sh && \
+    echo '        echo "Warning: Network connectivity check failed"' >> /start.sh && \
+    echo '    fi' >> /start.sh && \
+    echo '    sleep 1' >> /start.sh && \
+    echo 'done' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Set Python environment' >> /start.sh && \
+    echo 'export ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python' >> /start.sh && \
+    echo 'export PATH=$PATH:/root/ovftool' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Clone repo if GITHUB_TOKEN is provided' >> /start.sh && \
+    echo 'if [ -n "$GITHUB_TOKEN" ]; then' >> /start.sh && \
+    echo '    echo "Cloning repository..."' >> /start.sh && \
+    echo '    git clone https://x-access-token:${GITHUB_TOKEN}@github.com/thebrownteddybear1/tonjiak.git /root/tonjiak 2>/dev/null || echo "Clone failed or already exists"' >> /start.sh && \
+    echo '    if [ -d "/root/tonjiak" ]; then' >> /start.sh && \
+    echo '        cp /root/ansible.cfg /root/tonjiak/' >> /start.sh && \
+    echo '    fi' >> /start.sh && \
+    echo 'fi' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Start SSH service' >> /start.sh && \
+    echo 'echo "Starting SSH service..."' >> /start.sh && \
+    echo 'exec /usr/sbin/sshd -D' >> /start.sh && \
+    chmod +x /start.sh
+
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD ss -tulpn | grep -q ':22 ' || exit 1
+
+# Use the startup script
+CMD ["/start.sh"]

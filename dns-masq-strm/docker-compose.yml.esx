@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  esx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host  # ← THIS IS CRITICAL
+    container_name: esx-container
+    network_mode: "host"  # Runtime network
+    restart: unless-stopped
