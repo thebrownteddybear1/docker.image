@@ -3,12 +3,18 @@ services:
     image: cturra/ntp:latest
     container_name: ntp-server
     restart: unless-stopped
+    # Remove network_mode: host and use bridge with port mapping
     ports:
       - "123:123/udp"
-    environment:
-      - NTP_SERVERS=time1.google.com,time.cloudflare.com,pool.ntp.org
-      - NTP_ALLOW=0.0.0.0/0
-      - LOG_LEVEL=1
-      - TZ=Asia/Singapore
     cap_add:
       - SYS_TIME
+      - SYS_NICE
+    environment:
+      - NTP_SERVERS=time.cloudflare.com,time.google.com,pool.ntp.org
+      - NTP_ALLOW=0.0.0.0/0  # Allow all temporarily for testing
+      - LOG_LEVEL=2
+      - TZ=Asia/Singapore
+    # Add DNS configuration
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
