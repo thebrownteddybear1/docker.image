@@ -1,20 +1,42 @@
 services:
-  ntp:
-    image: cturra/ntp:latest
-    container_name: ntp-server
+  chrony-ntp:
+    image: ubuntu:22.04
+    container_name: chrony-ntp-server
     restart: unless-stopped
-    # Remove network_mode: host and use bridge with port mapping
-    ports:
-      - "123:123/udp"
+    network_mode: host
+    command: /bin/bash -c "
+      apt-get update &&
+      apt-get install -y chrony tzdata &&
+      rm -rf /var/lib/apt/lists/* &&
+      echo 'pool 0.pool.ntp.org iburst' > /etc/chrony/chrony.conf &&
+      echo 'pool 1.pool.ntp.org iburst' >> /etc/chrony/chrony.conf &&
+      echo 'pool 2.pool.ntp.org iburst' >> /etc/chrony/chrony.conf &&
+      echo 'pool 3.pool.ntp.org iburst' >> /etc/chrony/chrony.conf &&
+      echo 'allow 127.0.0.1' >> /etc/chrony/chrony.conf &&
+      echo 'allow 192.168.0.0/16' >> /etc/chrony/chrony.conf &&
+      echo 'makestep 1.0 3' >> /etc/chrony/chrony.conf &&
+      echo 'rtcsync' >> /etc/chrony/chrony.conf &&
+      echo 'local stratum 10' >> /etc/chrony/chrony.conf &&
+      echo 'keyfile /etc/chrony/chrony.keys' >> /etc/chrony/chrony.conf &&
+      echo 'driftfile /var/lib/chrony/chrony.drift' >> /etc/chrony/chrony.conf &&
+      echo 'logdir /var/log/chrony' >> /etc/chrony/chrony.conf &&
+      echo 'log measurements statistics tracking' >> /etc/chrony/chrony.conf &&
+      mkdir -p /var/lib/chrony &&
+      chown -R _chrony:_chrony /var/lib/chrony &&
+      /usr/sbin/chronyd -d -f /etc/chrony/chrony.conf
+    "
     cap_add:
       - SYS_TIME
       - SYS_NICE
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - chrony-config:/etc/chrony
+      - chrony-data:/var/lib/chrony
+    tmpfs:
+      - /run
     environment:
-      - NTP_SERVERS=time.cloudflare.com,time.google.com,pool.ntp.org
-      - NTP_ALLOW=0.0.0.0/0  # Allow all temporarily for testing
-      - LOG_LEVEL=2
       - TZ=Asia/Singapore
-    # Add DNS configuration
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+
+volumes:
+  chrony-config:
+  chrony-data:
