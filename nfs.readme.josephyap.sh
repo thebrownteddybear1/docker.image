@@ -22,33 +22,66 @@ systemctl restart nfs-kernel-server
 systemctl restart rpcbind
 
 # Add to /etc/sysctl.conf
-sudo tee -a /etc/sysctl.conf << 'EOF'
-
-# NFS Memory Optimizations (for 96GB RAM)
-# Increase NFS read/write buffers
+# Create clean optimized configuration
+sudo cp /etc/sysctl.conf /etc/sysctl.conf.backup
+sudo tee /etc/sysctl.conf << 'EOF'
+# ===== NFS SERVER OPTIMIZATIONS =====
+# SunRPC/NFS Connection Settings
+sunrpc.tcp_max_slot_table_entries=1024
+sunrpc.udp_slot_table_entries=1024
+sunrpc.tcp_slot_table_entries=1024
 sunrpc.max_resvport=1023
 sunrpc.min_resvport=665
 
-# Increase NFS client memory
-fs.nfs.nfs_callback_nr_threads=16
+# NFS Specific Settings
+fs.nfs.nfs_callback_nr_threads=24
 fs.nfs.nfs_mountpoint_timeout=300
+fs.nfs.nlm_udpport=32768
+fs.nfs.nlm_tcpport=32768
 
-# More aggressive caching
-vm.dirty_background_bytes=67108864  # 64MB
-vm.dirty_bytes=1073741824           # 1GB
-vm.dirty_expire_centisecs=6000      # 60 seconds
-vm.dirty_writeback_centisecs=500    # 5 seconds
+# ===== NETWORK OPTIMIZATIONS =====
+# Socket buffers for high throughput
+net.core.rmem_max=67108864      # 64MB
+net.core.wmem_max=67108864
+net.core.rmem_default=16777216  # 16MB
+net.core.wmem_default=16777216
+net.core.optmem_max=16777216    # 16MB
+net.core.netdev_max_backlog=10000
+net.core.somaxconn=4096
 
-# More file handles for many clients
+# TCP buffers and behavior
+net.ipv4.tcp_rmem=4096 87380 67108864
+net.ipv4.tcp_wmem=4096 65536 67108864
+net.ipv4.tcp_mem=8388608 12582912 16777216
+net.ipv4.tcp_max_syn_backlog=4096
+net.ipv4.tcp_syncookies=1
+net.ipv4.tcp_fin_timeout=15
+net.ipv4.tcp_tw_reuse=1
+net.ipv4.tcp_slow_start_after_idle=0
+net.ipv4.tcp_mtu_probing=1
+
+# ===== VM MEMORY OPTIMIZATIONS =====
+# Writeback caching (aggressive for 96GB RAM)
+vm.dirty_background_bytes=67108864     # 64MB before background flush
+vm.dirty_bytes=1073741824              # 1GB before forcing sync
+vm.dirty_expire_centisecs=6000         # 60 seconds
+vm.dirty_writeback_centisecs=500       # 5 seconds between flushes
+vm.swappiness=5
+vm.vfs_cache_pressure=50
+
+# ===== FILE HANDLE LIMITS =====
 fs.file-max=2097152
 fs.nr_open=2097152
+fs.aio-max-nr=1048576
 EOF
 
+# Apply the clean configuration
 sudo sysctl -p
 
-# Change to 24 threads (from current 18-20)
-sudo sed -i '/^\[nfsd\]/,/^\[/ s/^threads=.*/threads=24/' /etc/nfs.conf
+# On NFS server (54)
+sudo sed -i '/^\[nfsd\]/,/^\[/ s/^threads=.*/threads=48/' /etc/nfs.conf
 sudo systemctl restart nfs-server
+
 ##monitor nfs
 cat > /root/nfs_monitor.sh << 'EOF'
 #!/bin/bash
@@ -118,3 +151,34 @@ EOF
 
 chmod +x /root/check_memory.sh
 /root/check_memory.sh
+
+
+cat > /root/mtu_mystery.sh << EOF
+#!/bin/bash
+echo "=== Investigating MTU Mystery ==="
+echo "Time: $(date)"
+echo ""
+
+# 1. Server MTU
+echo "1. SERVER MTU:"
+ip link show ens35 | grep mtu
+echo ""
+
+# 2. Test clients
+echo "2. TESTING CLIENTS:"
+for client in 192.168.52.131 192.168.52.132; do
+    echo "Testing $client..."
+    ping -c 1 -M do -s 8972 $client 2>&1 | grep -E "(bytes from|fragmentation)"
+done
+echo ""
+
+# 3. Check TCP MSS
+echo "3. ACTIVE TCP CONNECTIONS (MSS value):"
+ss -tin sport = :2049 2>/dev/null | grep -E "(mss|192.168.52)" | head -5
+echo ""
+
+# 4. Real-time traffic sample
+echo "4. CURRENT TRAFFIC (packet sizes):"
+timeout 2 sudo tcpdump -i ens35 -c 5 'port 2049' 2>/dev/null | grep length
+EOF
+chmod +x /root/mtu_mystery.sh
