@@ -16,3 +16,31 @@ qm set 100 --cores 24 --sockets 2
 
 # Or for 56 vCPUs (maximum matching physical cores)
 qm set 100 --cores 28 --sockets 2
+
+
+
+# nested eCKvodXd2aUo4PQ38MFxszcgepexDKTlp4YlacyY6Y0JyXkKQifKRiQUc4nWGWfeY70Ie4Pkvnq8R0FGX2EIB
+root@pve:~# !cat
+cat /etc/pve/qemu-server/100.conf 
+allow-ksm: 0
+balloon: 0
+cores: 24
+cpu: host
+ide2: local:iso/VMware-VMvisor-Installer-9.0.1.0.24957456.x86_64.iso,media=cdrom,size=647548K
+machine: q35
+memory: 131072
+meta: creation-qemu=10.1.2,ctime=1769957512
+name: esx11
+net0: vmxnet3=BC:24:11:53:A8:4B,bridge=vmbr0
+net1: vmxnet3=BC:24:11:56:E5:66,bridge=vmbr0
+numa: 0
+ostype: other
+sata0: nvme:base-100-disk-1,backup=0,discard=on,size=40G,ssd=1
+scsi1: nvme:base-100-disk-0,cache=none,size=500G
+scsi2: local-lvm:base-100-disk-1,cache=none,size=1T
+scsihw: pvscsi
+smbios1: uuid=4af4623c-d755-4f72-9157-13a8cbefbe82
+sockets: 2
+template: 1
+vmgenid: 3ffc0ea9-f086-4263-b5e9-a2e77c1fdac7
+root@pve:~# 
