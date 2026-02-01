@@ -5,8 +5,14 @@ args: -cpu Skylake-Server,+vmx,-spec-ctrl,-hle,-rtm
 # Shut down the VM first
 qm stop 100
 
-# Set to 8 cores (or your desired count)
-qm set 100 --cores 8
+qm set 100 --cores 24 --sockets 2
 
 # Start the VM
 qm start 100
+
+
+# Example: 48 vCPUs (balanced across both sockets)
+qm set 100 --cores 24 --sockets 2
+
+# Or for 56 vCPUs (maximum matching physical cores)
+qm set 100 --cores 28 --sockets 2
