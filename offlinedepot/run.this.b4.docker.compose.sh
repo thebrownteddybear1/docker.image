@@ -14,4 +14,4 @@ htpasswd -bc .htpasswd depot_user YourPassword
 echo "Depot-EMEA" > depot_data/index.html
 
 # 5. Build and Start
-docker-compose up -d --build
+docker compose up -d --build
