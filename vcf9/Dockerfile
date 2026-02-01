@@ -40,25 +40,50 @@ RUN apt-get update && apt-get install -y \
     python3-aiohttp \
     bash \
     ansible \
+    nginx \
+    apache2-utils \
+    openconnect \
     && rm -rf /var/lib/apt/lists/*
 
-#### GEMINI
+#### GEMINI - OFFLINE DEPOT STEPS ####
 
-RUN mkdir /depot && \
-    apt-get install -y nginx apache2-utils && \
-    htpasswd -c /etc/nginx/.htpasswd depot_user && \
-    sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.crt -subj "/C=BG/ST=Sof/L=/O=BRCM/OU=VCF/CN=depot.corp.internal/emailAddress=myemail@brcm.com" && \
-#### GEMINI
+# 1. Create directory and dummy file
+RUN mkdir -p /depot && echo "Depot-EMEA" >> /depot/index.html
 
+# 2. Create .htpasswd (using -b for batch mode to set password 'VMware1!')
+RUN htpasswd -bc /etc/nginx/.htpasswd depot_user 'VMware1!'
 
+# 3. Create self-signed certificate (One-liner)
+RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /etc/ssl/private/nginx-selfsigned.key \
+    -out /etc/ssl/certs/nginx-selfsigned.crt \
+    -subj "/C=BG/ST=Sof/L=/O=BRCM/OU=VCF/CN=depot.corp.internal/emailAddress=myemail@brcm.com"
+
+# 4. Update the Nginx config (Writing directly to the default site config)
+RUN printf 'server {\n\
+    listen 80 default_server;\n\
+    listen [::]:80 default_server;\n\
+    listen 443 ssl;\n\
+    ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;\n\
+    ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;\n\
+    ssl_protocols TLSv1.2 TLSv1.3;\n\
+    ssl_ciphers HIGH:!aNULL:!MD5;\n\
+    root /depot;\n\
+    index index.html index.htm index.nginx-debian.html;\n\
+    server_name depot.vcf-gcp.broadcom.net;\n\
+    location / {\n\
+        autoindex on;\n\
+        auth_basic "Restricted Content";\n\
+        auth_basic_user_file /etc/nginx/.htpasswd;\n\
+        try_files $uri $uri/ =404;\n\
+    }\n\
+}\n' > /etc/nginx/sites-available/default
+
+#### END GEMINI ####
 
 # ===== THE PROPER WAY: SYSTEM-MANAGED ANSIBLE & COLLECTIONS =====
-# 1. We installed python3-requests and python3-aiohttp via apt above.
-# 2. Install collections to a global path that Ansible checks by default.
 RUN mkdir -p /usr/share/ansible/collections && \
     ansible-galaxy collection install vmware.vmware_rest community.vmware -p /usr/share/ansible/collections
-
-# Ensure Ansible environment is aware of the collection path
 ENV ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
 # ==========================================================
 
@@ -108,26 +133,14 @@ RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsof
 RUN echo "source /usr/share/bash-completion/bash_completion" >> /root/.bashrc && \
     echo 'source <(kubectl completion bash)' >> /root/.bashrc
 
-#install k9s
+# install k9s
 RUN wget https://github.com/derailed/k9s/releases/download/v0.50.18/k9s_Linux_amd64.tar.gz && \
     tar xvf k9s_Linux_amd64.tar.gz && \
     cp k9s /usr/local/bin
 
-# Create the startup script
-RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
-    echo 'mkdir -p /var/run/sshd' >> /usr/local/bin/start.sh && \
-    echo '/usr/sbin/sshd -D &' >> /usr/local/bin/start.sh && \
-    echo 'echo "SSH server starting..."' >> /usr/local/bin/start.sh && \
-    echo 'cd /root/tonjiak/vcf9/offlinedepot/' >> /usr/local/bin/start.sh && \
-    echo 'chmod +x tls.cert.key.sh' >> /usr/local/bin/start.sh && \
-    echo './tls.cert.key.sh' >> /usr/local/bin/start.sh && \
-    echo 'echo "Webserver script executed."' >> /usr/local/bin/start.sh && \
-    echo 'tail -f /dev/null' >> /usr/local/bin/start.sh
-
 # broadcom vpn setup
-RUN apt install -y openconnect && \
-    mkdir -p /root/tonjiak/vcf9/offlinedepot/vpn && \
-    cd /root/tonjiak/vcf9/offlinedepot/vpn/ && \
+RUN mkdir -p /root/offlinedepot/vpn && \
+    cd /root/offlinedepot/vpn/ && \
     echo "#!/bin/bash" > vpn.up.sh  && \
     echo "set -x"  >> vpn.up.sh  && \
     echo "openconnect -u 'ty036880@broadcom.net' \
@@ -139,12 +152,17 @@ RUN apt install -y openconnect && \
     chmod +x vpn.up.sh  && \
     chmod +x vpn.down.sh
 
+# Create the startup script (Updated to ensure Nginx starts)
+RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
+    echo 'service nginx start' >> /usr/local/bin/start.sh && \
+    echo '/usr/sbin/sshd -D' >> /usr/local/bin/start.sh
+
 # Explicitly set permissions
 RUN chmod +x /usr/local/bin/start.sh
 
 # Expose ports
 EXPOSE 22
+EXPOSE 80
 EXPOSE 443
 
 ENTRYPOINT ["/usr/local/bin/start.sh"]
-
