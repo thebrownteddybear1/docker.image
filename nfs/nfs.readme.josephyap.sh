@@ -79,7 +79,7 @@ EOF
 sudo sysctl -p
 
 # On NFS server (54)
-sudo sed -i '/^\[nfsd\]/,/^\[/ s/^threads=.*/threads=48/' /etc/nfs.conf
+sudo sed -i '/^\[nfsd\]/,/^\[/ s/^threads=.*/threads=20/' /etc/nfs.conf
 sudo systemctl restart nfs-server
 
 ##monitor nfs

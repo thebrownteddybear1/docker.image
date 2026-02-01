@@ -11,4 +11,4 @@ services:
       - NTP_SERVERS=0.pool.ntp.org,1.pool.ntp.org,2.pool.ntp.org,3.pool.ntp.org
       - NTP_ALLOW=127.0.0.1 192.168.0.0/16 10.0.0.0/8
       - LOG_LEVEL=1
-      - TZ=Asia/Singapore
+      - TZ=Asia/Singaporec:\Users\fat_z\Downloads\VCF-9.0.1.0-2026-01-30T20-34-07-321Z.0.json

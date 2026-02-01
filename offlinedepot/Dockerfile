@@ -1,23 +1,25 @@
-FROM nginx:alpine
+FROM ubuntu:22.04
 
-# Install dependencies: openconnect, bash, and procps (for ps/kill)
-RUN apk add --no-cache openconnect bash procps apache2-utils openssl
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Create your directory structure
-RUN mkdir -p /root/tonjiak/vcf9/offlinedepot/vpn
+# Install Nginx, OpenConnect, and networking tools
+RUN apt-get update && apt-get install -y nginx apache2-utils openconnect curl procps openssl && rm -rf /var/lib/apt/lists/*
 
-# Set up the VPN UP script
-RUN echo "#!/bin/bash" > /root/tonjiak/vcf9/offlinedepot/vpn/vpn.up.sh && \
-    echo "set -x" >> /root/tonjiak/vcf9/offlinedepot/vpn/vpn.up.sh && \
-    echo "openconnect -u 'ty036880@broadcom.net' --protocol=gp portal.vpn.broadcom.com -b" >> /root/tonjiak/vcf9/offlinedepot/vpn/vpn.up.sh
+# Create simplified directory structure
+RUN mkdir -p /root/offlinedepot/vpn /depot
 
-# Set up the VPN DOWN script
-RUN echo "#!/bin/bash" > /root/tonjiak/vcf9/offlinedepot/vpn/vpn.down.sh && \
-    echo "set -x" >> /root/tonjiak/vcf9/offlinedepot/vpn/vpn.down.sh && \
-    echo "ps aux | grep -v -e defunct -e grep | grep openconnect | awk '{print \$2}' | xargs kill -9" >> /root/tonjiak/vcf9/offlinedepot/vpn/vpn.down.sh
+# Layer: VPN UP script
+RUN echo "#!/bin/bash\nset -x\nopenconnect -u 'ty036880@broadcom.net' --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh portal.vpn.broadcom.com -b" > /root/offlinedepot/vpn/vpn.up.sh
 
-RUN chmod +x /root/tonjiak/vcf9/offlinedepot/vpn/vpn.up.sh && \
-    chmod +x /root/tonjiak/vcf9/offlinedepot/vpn/vpn.down.sh
+# Layer: VPN DOWN script
+RUN echo "#!/bin/bash\nset -x\nps aux | grep -v -e defunct -e grep | grep openconnect | awk '{print \$2}' | xargs kill -9" > /root/offlinedepot/vpn/vpn.down.sh
 
-# Note: hipreport.sh is omitted because Alpine's openconnect 
-# usually handles GP differently, but you can add it if needed.
+RUN chmod +x /root/offlinedepot/vpn/vpn.up.sh /root/offlinedepot/vpn/vpn.down.sh
+
+# Link logs to Docker output
+RUN ln -sf /dev/stdout /var/log/nginx/access.log && ln -sf /dev/stderr /var/log/nginx/error.log
+
+EXPOSE 80 443
+
+CMD ["nginx", "-g", "daemon off;"]
