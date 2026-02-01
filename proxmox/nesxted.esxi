@@ -1,0 +1,12 @@
+vi /etc/pve/qemu-server/100.conf 
+cpu: Skylake-Server
+args: -cpu Skylake-Server,+vmx,-spec-ctrl,-hle,-rtm
+
+# Shut down the VM first
+qm stop 100
+
+# Set to 8 cores (or your desired count)
+qm set 100 --cores 8
+
+# Start the VM
+qm start 100
