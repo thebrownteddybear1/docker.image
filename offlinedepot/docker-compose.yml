@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  depot-server:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: vcf-offline-depot
+    privileged: true  # Required to create the VPN tunnel (TUN/TAP)
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./data:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./.htpasswd:/etc/nginx/.htpasswd:ro
+      - /dev/net/tun:/dev/net/tun # Share host network driver
+    restart: always
