@@ -78,7 +78,8 @@ RUN printf 'server {\n\
         }\n\
 }\n' > /etc/nginx/sites-available/default
 
-RUN service nginx reload
+RUN service nginx reload && \
+echo "Depot-EMEA" >> /depot/index.html
 #### END GEMINI ####
 
 # ===== ANSIBLE COLLECTIONS =====
