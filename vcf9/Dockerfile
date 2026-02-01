@@ -42,6 +42,16 @@ RUN apt-get update && apt-get install -y \
     ansible \
     && rm -rf /var/lib/apt/lists/*
 
+#### GEMINI
+
+RUN mkdir /depot && \
+    apt-get install -y nginx apache2-utils && \
+    htpasswd -c /etc/nginx/.htpasswd depot_user && \
+    sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.crt -subj "/C=BG/ST=Sof/L=/O=BRCM/OU=VCF/CN=depot.corp.internal/emailAddress=myemail@brcm.com" && \
+#### GEMINI
+
+
+
 # ===== THE PROPER WAY: SYSTEM-MANAGED ANSIBLE & COLLECTIONS =====
 # 1. We installed python3-requests and python3-aiohttp via apt above.
 # 2. Install collections to a global path that Ansible checks by default.
