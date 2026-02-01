@@ -5,5 +5,5 @@ echo -e "nameserver 127.0.0.1\noptions edns0 trust-ad" | sudo tee /etc/resolv.co
 sudo systemctl restart systemd-resolved
 sudo ss -tulpn | grep :53
 systemctl stop systemd-resolved
-systemctl disabled systemd-resolved
+systemctl disable systemd-resolved
 
