@@ -47,4 +47,45 @@ done
 echo "------------------------------------------------------------"
 echo "Fleet update complete. All nodes optimized for VCF 9."
 
-Would you like me to also provide the specific VyOS "Copy-Paste" commands to rebuild your VLANs and MTU settings if you ever have to reset that VM?
+============================================================
+VCF 9 ON PROXMOX: THE GOLDEN DEPLOYMENT GUIDE
+============================================================
+
+1. HOST PREPARATION (GRUB)
+------------------------------------------------------------
+Hugepages must be reserved at boot to avoid fragmentation.
+The following line ensures 730GB is set aside for VMs:
+
+File: /etc/default/grub
+Line: GRUB_CMDLINE_LINUX_DEFAULT="... intel_iommu=on default_hugepagesz=1G hugepagesz=1G hugepages=730"
+
+Apply: update-grub && reboot
+
+2. THE "GOLDEN" VM CONFIGURATION (ESXi Nodes)
+------------------------------------------------------------
+Each ESXi Node (100-103, 105, 109) requires these parameters:
+- RAM: 92160 MB (90GB)
+- Hugepages: 1024 (1GB pages)
+- CPU Type: host
+- CPU Flags: +nested-virt;+aes;+pdpe1gb
+- Extra: hidden=1 (Hides hypervisor from VCF 9 Validation)
+- Network: MTU 9000 (Required for NSX/Geneve Overlay)
+
+3. FLEET AUTOMATION SCRIPT
+------------------------------------------------------------
+#!/bin/bash
+# Batch apply Golden Config to ESXi fleet
+ESXI_NODES=(100 101 102 103 105 109)
+for vmid in "${ESXI_NODES[@]}"; do
+  echo "Optimizing VM $vmid..."
+  qm set $vmid --memory 92160 --hugepages 1024 --balloon 0
+  qm set $vmid --cpu host,flags=+nested-virt\;+aes\;+pdpe1gb
+  sed -i 's/^cpu: host,flags=.*/&,hidden=1/' /etc/pve/qemu-server/$vmid.conf
+done
+
+4. TROUBLESHOOTING & STARTUP
+------------------------------------------------------------
+- Startup Order: 1. VyOS(107) -> 2. DNS(104) -> 3. NFS(108) -> 4. ESXi Fleet
+- Verification: cat /proc/meminfo | grep HugePages_Total (Should be 730)
+- VCF Check: Ensure VyOS MTU is 9000 for all VLAN interfaces.
+============================================================
