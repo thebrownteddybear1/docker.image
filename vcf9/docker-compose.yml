@@ -1,12 +1,9 @@
-version: '3.8'
-
 services:
   vcf-manager:
     build: .
     container_name: vcf-v9-manager
     hostname: depot.vcf-gcp.broadcom.net
     
-    # Required for OpenConnect VPN to create the 'tun' interface
     privileged: true
     cap_add:
       - NET_ADMIN
@@ -14,20 +11,16 @@ services:
       - "/dev/net/tun:/dev/net/tun"
 
     ports:
-      - "2222:22"   # Maps SSH to port 2222 to avoid conflict with host SSH
-      - "80:80"     # HTTP for Depot
-      - "443:443"   # HTTPS for Depot
+      - "2222:22"
+      - "80:80"
+      - "443:443"
 
     volumes:
-      # This ensures downloaded VCF bundles persist on your host machine
+      # Keep this one so your actual VCF downloads are safe on the host
       - ./depot_data:/depot
-      # Optional: persist your git repo and scripts
-      - ./root_data:/root/tonjiak
-      # Persistent logs for the token script
-      - ./powershell_logs:/depot/vcf-download-tool/logs
+      # We removed the tonjiak mapping to prevent hiding the image files
 
     environment:
-      # These can override the Dockerfile defaults if needed
       - DepotTier=Staging
       - ProductionUserEmail=svc.config-infra@broadcom.com
 
