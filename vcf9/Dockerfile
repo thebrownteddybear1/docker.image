@@ -65,6 +65,8 @@ RUN cd /root/downloadtool && \
 # for any file matching 'application-prod*.properties' and update the host.
 RUN find /root/downloadtool -name "application-prod*.properties" -exec \
     sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' {} +
+
+COPY edit.me.add.token.downloadtool.sh /root/downloadtool/edit.me.add.token.downloadtool.sh
 #### SECTION: POWERSHELL & BROADCOM TOKEN SCRIPT ####
 
 RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
