@@ -57,7 +57,7 @@ COPY vcf-download-tool-*.tar.gz /root/downloadtool/
 RUN cd /root/downloadtool && \
     gunzip vcf-download-tool-*.tar.gz && \
     tar -xvf vcf-download-tool-*.tar && \
-    rm vcf-download-tool-*.tar
+ #   rm vcf-download-tool-*.tar
 
 # 4. Robust Configuration Update
 # Your tree shows files like 'vvs-config.json' and various 'config.xml' files.
