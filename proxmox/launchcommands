@@ -1,17 +1,22 @@
-# 1. Start Networking & Core Services
+# 1. Start Network & DNS (Lightweight, no hugepages)
 qm start 107 && qm start 104
-sleep 20
+echo "Waiting 15s for Network Core..."
+sleep 15
 
-# 2. Start Storage (NFS must be up for ESXi to mount datastores)
+# 2. Start Storage (70GB Hugepage allocation)
+echo "Starting NFS Storage..."
 qm start 108
+echo "Waiting 30s for Storage memory to settle..."
 sleep 30
 
-# 3. Batch start the ESXi fleet with a 10-second stagger
+# 3. Start the ESXi Fleet (80GB Hugepage allocations)
 for i in 100 101 102 103 105 109; do 
   echo "Starting ESXi Node $i..."
   qm start $i
-  sleep 10
+  echo "Waiting 30s for Node $i memory mapping..."
+  sleep 30
 done
 
-# 4. Start the VCF Cloud Builder
+# 4. Start Installer
+echo "Starting VCF Cloud Builder..."
 qm start 106
