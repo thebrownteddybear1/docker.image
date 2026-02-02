@@ -43,16 +43,22 @@ RUN printf 'server {\n\
         }\n\
 }\n' > /etc/nginx/sites-available/default
 
-#### SECTION: VCF DOWNLOAD TOOL & CONFIG UPDATES ####
+#### SECTION: VCF DOWNLOAD TOOL IN /ROOT/DOWNLOADTOOL ####
 
-COPY vcf-download-tool-*.tar.gz /depot/
+# 1. Create the directory
+RUN mkdir -p /root/downloadtool
 
-RUN mkdir -p /depot/vcf-download-tool && \
-    mv /depot/vcf-download-tool-*.tar.gz /depot/vcf-download-tool/ && \
-    cd /depot/vcf-download-tool/ && \
-    tar -zxvf vcf-download-tool-*.tar.gz && \
-    sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' \
-    /depot/vcf-download-tool/conf/application-prod*.properties
+# 2. Copy the tarball to the new location
+COPY vcf-download-tool-*.tar.gz /root/downloadtool/
+
+# 3. Extract it there and clean up the tarball
+RUN cd /root/downloadtool && \
+    tar -zxvf vcf-download-tool-*.tar.gz --strip-components=1 && \
+    rm vcf-download-tool-*.tar.gz
+
+# 4. Update the config to point to Staging
+RUN sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' \
+    /root/downloadtool/conf/application-prod*.properties
 
 #### SECTION: POWERSHELL & BROADCOM TOKEN SCRIPT ####
 
@@ -66,22 +72,18 @@ $env:StagingClientId="7SxxUEoYtKYpRerCi6U0d3QWMFSa485UkbvorpRlO46h4fde"\n\
 $env:StagingClientSecret="PuW6Esb1qYRqcN92RAwzpqvRPteeIy5UNuR1ywE4oy09b4LQ4ijN4nHmY8TJbQaG"\n\
 $env:StagingUserEmail="svc.config-infra@broadcom.com"\n' > /root/.config/powershell/Microsoft.PowerShell_profile.ps1
 
-COPY DownloadToken.ps1 /depot/vcf-download-tool/DownloadToken.ps1
-RUN chmod +x /depot/vcf-download-tool/DownloadToken.ps1
+# Copy DownloadToken.ps1 to the same folder
+COPY DownloadToken.ps1 /root/downloadtool/DownloadToken.ps1
+RUN chmod +x /root/downloadtool/DownloadToken.ps1
 
 #### SECTION: FINAL TOOLS & REPO CLONE ####
 
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
     git config --global user.name "teddy"
 
-# Clone Public Repository - No chmod follows
 RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
 
-# K9s and Ansible
-RUN mkdir -p /usr/share/ansible/collections && \
-    ansible-galaxy collection install vmware.vmware_rest community.vmware -p /usr/share/ansible/collections
-ENV ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
-
+# Standard Tooling
 COPY path/kubectl /usr/local/bin/
 COPY path/kubectl-vsphere /usr/local/bin/
 COPY VMware-ovftool-*.zip /root/
