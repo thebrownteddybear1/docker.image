@@ -1,0 +1,50 @@
+Here is your VCF 9 Golden Configuration summary and the automation script combined into one easy-to-save block. You can copy this entire section into a text file (e.g., vcf9_reference.txt) for the next time we build this.
+VCF 9 Proxmox Golden Configuration Reference
+1. The Core Components
+
+    CPU Stealth String: host,flags=+nested-virt;+aes;+pdpe1gb,hidden=1. This enables nested virtualization, hardware encryption, and hides the hypervisor from VCF to pass validation.
+
+    Memory Architecture: Uses 1GB Hugepages to lock RAM. This prevents Proxmox from swapping and ensures the high-performance throughput required by ESXi nodes and NFS storage.
+
+    Networking: A global MTU of 9000 on vmbr0 and VyOS to handle NSX-T Geneve encapsulation overhead.
+
+2. The Requirements Math
+
+    Host Hugepage Pool: Reserved via GRUB (hugepages=730).
+
+    VM Allocation: 90GB per ESXi node (92160 MB) and 100GB for NFS Storage (102400 MB).
+
+    Infrastructure RAM: ~128GB unreserved for Proxmox OS, VyOS, DNS, and VCF Cloud Builder.
+
+Proxmox Batch Configuration Script
+
+Run this script on your Proxmox host to instantly apply these "Golden" settings to your ESXi fleet (VMs 100, 101, 102, 103, 105, 109).
+Bash
+
+#!/bin/bash
+# VCF 9 Proxmox Fleet Optimizer
+
+# Define the ESXi VM IDs
+ESXI_NODES=(100 101 102 103 105 109)
+
+for vmid in "${ESXI_NODES[@]}"; do
+  echo "------------------------------------------------------------"
+  echo "Applying Golden Config to VM $vmid (ESXi Node)..."
+  
+  # 1. Set Memory to 90GB and enable 1GB Hugepages
+  qm set $vmid --memory 92160 --hugepages 1024 --balloon 0
+  
+  # 2. Apply CPU Flags (Nested Virt, AES, 1GB Page Support)
+  qm set $vmid --cpu host,flags=+nested-virt\;+aes\;+pdpe1gb
+  
+  # 3. Inject 'hidden=1' to hide hypervisor from VCF 9 Validation
+  # This targets the specific cpu line in the conf file
+  sed -i 's/^cpu: host,flags=.*/&,hidden=1/' /etc/pve/qemu-server/$vmid.conf
+  
+  echo "Done with $vmid."
+done
+
+echo "------------------------------------------------------------"
+echo "Fleet update complete. All nodes optimized for VCF 9."
+
+Would you like me to also provide the specific VyOS "Copy-Paste" commands to rebuild your VLANs and MTU settings if you ever have to reset that VM?

@@ -1,0 +1,17 @@
+# 1. Start Networking & Core Services
+qm start 107 && qm start 104
+sleep 20
+
+# 2. Start Storage (NFS must be up for ESXi to mount datastores)
+qm start 108
+sleep 30
+
+# 3. Batch start the ESXi fleet with a 10-second stagger
+for i in 100 101 102 103 105 109; do 
+  echo "Starting ESXi Node $i..."
+  qm start $i
+  sleep 10
+done
+
+# 4. Start the VCF Cloud Builder
+qm start 106
