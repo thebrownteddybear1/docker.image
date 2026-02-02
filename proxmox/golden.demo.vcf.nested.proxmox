@@ -61,31 +61,33 @@ Line: GRUB_CMDLINE_LINUX_DEFAULT="... intel_iommu=on default_hugepagesz=1G hugep
 
 Apply: update-grub && reboot
 
-2. THE "GOLDEN" VM CONFIGURATION (ESXi Nodes)
+2. ============================================================
+VCF 9 ON PROXMOX: THE GOLDEN STABILITY BLUEPRINT
+============================================================
+
+1. HOST PREPARATION (GRUB)
 ------------------------------------------------------------
-Each ESXi Node (100-103, 105, 109) requires these parameters:
-- RAM: 92160 MB (90GB)
-- Hugepages: 1024 (1GB pages)
+RESERVE: intel_iommu=on default_hugepagesz=1G hugepagesz=1G hugepages=730
+Apply: update-grub && reboot
+
+2. STABLE VM MEMORY TARGETS (Reduced for Buffer)
+------------------------------------------------------------
+- ESXi Nodes (100-103, 105, 109): 81920 MB (80GB)
+- NFS Storage (108): 71680 MB (70GB)
+- Total Hugepage Reservation: 550GB (Leaves 180GB Slack)
+- Hugepages: Always set to 1024 (1GB) in VM config.
+
+3. CPU & STEALTH SETTINGS
+------------------------------------------------------------
 - CPU Type: host
 - CPU Flags: +nested-virt;+aes;+pdpe1gb
-- Extra: hidden=1 (Hides hypervisor from VCF 9 Validation)
-- Network: MTU 9000 (Required for NSX/Geneve Overlay)
+- Stealth: hidden=1 (Manual entry in .conf file)
 
-3. FLEET AUTOMATION SCRIPT
+4. THE "NO-FAIL" STARTUP SEQUENCE
 ------------------------------------------------------------
-#!/bin/bash
-# Batch apply Golden Config to ESXi fleet
-ESXI_NODES=(100 101 102 103 105 109)
-for vmid in "${ESXI_NODES[@]}"; do
-  echo "Optimizing VM $vmid..."
-  qm set $vmid --memory 92160 --hugepages 1024 --balloon 0
-  qm set $vmid --cpu host,flags=+nested-virt\;+aes\;+pdpe1gb
-  sed -i 's/^cpu: host,flags=.*/&,hidden=1/' /etc/pve/qemu-server/$vmid.conf
-done
-
-4. TROUBLESHOOTING & STARTUP
-------------------------------------------------------------
-- Startup Order: 1. VyOS(107) -> 2. DNS(104) -> 3. NFS(108) -> 4. ESXi Fleet
-- Verification: cat /proc/meminfo | grep HugePages_Total (Should be 730)
-- VCF Check: Ensure VyOS MTU is 9000 for all VLAN interfaces.
+Step 1: Start VyOS (107) & DNS (104). Wait 1 min.
+Step 2: Start NFS (108). Wait 1 min.
+Step 3: Start ESXi Nodes ONE BY ONE.
+        Wait EXACTLY 60 SECONDS between each 'qm start'.
+Step 4: Start VCF Cloud Builder (106).
 ============================================================
