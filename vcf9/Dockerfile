@@ -3,7 +3,7 @@ FROM ubuntu:latest
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Update apt and install all required packages
+# 1. Update apt and install all required packages (including gzip)
 RUN apt-get update && apt-get install -y \
     apt-transport-https ca-certificates curl gnupg lsb-release \
     tree nano openssh-server iproute2 iputils-ping net-tools \
@@ -45,20 +45,19 @@ RUN printf 'server {\n\
 
 #### SECTION: VCF DOWNLOAD TOOL IN /ROOT/DOWNLOADTOOL ####
 
-# 1. Create the directory
 RUN mkdir -p /root/downloadtool
-
-# 2. Copy the tarball to the new location
 COPY vcf-download-tool-*.tar.gz /root/downloadtool/
 
-# 3. Extract it there and clean up the tarball
+# 1. Gunzip the .gz file to create a .tar file
+# 2. Extract the .tar file (using --strip-components=1 to avoid nested folders)
 RUN cd /root/downloadtool && \
-    tar -zxvf vcf-download-tool-*.tar.gz --strip-components=1 && \
-    rm vcf-download-tool-*.tar.gz
+    gunzip vcf-download-tool-*.tar.gz && \
+    tar -xvf vcf-download-tool-*.tar && \
+    rm vcf-download-tool-*.tar
 
-# 4. Update the config to point to Staging
-RUN sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' \
-    /root/downloadtool/conf/application-prod*.properties
+# 3. Update the config (using find to be safe against exact filename variations)
+RUN find /root/downloadtool -name "application-prod*.properties" -exec \
+    sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' {} +
 
 #### SECTION: POWERSHELL & BROADCOM TOKEN SCRIPT ####
 
@@ -72,7 +71,6 @@ $env:StagingClientId="7SxxUEoYtKYpRerCi6U0d3QWMFSa485UkbvorpRlO46h4fde"\n\
 $env:StagingClientSecret="PuW6Esb1qYRqcN92RAwzpqvRPteeIy5UNuR1ywE4oy09b4LQ4ijN4nHmY8TJbQaG"\n\
 $env:StagingUserEmail="svc.config-infra@broadcom.com"\n' > /root/.config/powershell/Microsoft.PowerShell_profile.ps1
 
-# Copy DownloadToken.ps1 to the same folder
 COPY DownloadToken.ps1 /root/downloadtool/DownloadToken.ps1
 RUN chmod +x /root/downloadtool/DownloadToken.ps1
 
@@ -83,7 +81,6 @@ RUN git config --global user.email "thebrownteddybear@gmail.com" && \
 
 RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
 
-# Standard Tooling
 COPY path/kubectl /usr/local/bin/
 COPY path/kubectl-vsphere /usr/local/bin/
 COPY VMware-ovftool-*.zip /root/
