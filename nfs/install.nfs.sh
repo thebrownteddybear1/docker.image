@@ -1,6 +1,7 @@
 #!/bin/bash
 set -x
-
+sudo chown nobody:nogroup /mnt/nfs1
+sudo chmod 777 /mnt/nfs1
 sudo apt update
 sudo apt -y install nfs-kernel-server
 chown nobody:nogroup /mnt/nfs1
@@ -20,3 +21,6 @@ systemctl restart nfs-kernel-server
 
 # Sometimes also need:
 systemctl restart rpcbind
+
+#remember to set noatime and discards in the fstab @!@@@@@!!!!!!
+#/dev/disk/by-id/dm-uuid-LVM-W0wVx2OPQX5A7JehV6XMagigwoEMiyn7w2G378nc0eMmg6gmIqPhpy4kXOlvtdxK /mnt/nfs1 xfs defaults,noatime,nodiscard 0 1
