@@ -45,14 +45,12 @@ RUN printf 'server {\n\
 
 #### SECTION: VCF DOWNLOAD TOOL & CONFIG UPDATES ####
 
-# Copy the tool - using wildcard for versioning
 COPY vcf-download-tool-*.tar.gz /depot/
 
 RUN mkdir -p /depot/vcf-download-tool && \
     mv /depot/vcf-download-tool-*.tar.gz /depot/vcf-download-tool/ && \
     cd /depot/vcf-download-tool/ && \
     tar -zxvf vcf-download-tool-*.tar.gz && \
-    # Using wildcard in sed to catch 'application-prod.properties' AND 'application-prodv2.properties'
     sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' \
     /depot/vcf-download-tool/conf/application-prod*.properties
 
@@ -62,49 +60,45 @@ RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsof
     dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb && \
     apt-get update && apt-get install -y powershell
 
-# Create PowerShell Profile with Staging Credentials
 RUN mkdir -p /root/.config/powershell/ && \
     printf '$env:DepotTier="Staging"\n\
 $env:StagingClientId="7SxxUEoYtKYpRerCi6U0d3QWMFSa485UkbvorpRlO46h4fde"\n\
 $env:StagingClientSecret="PuW6Esb1qYRqcN92RAwzpqvRPteeIy5UNuR1ywE4oy09b4LQ4ijN4nHmY8TJbQaG"\n\
 $env:StagingUserEmail="svc.config-infra@broadcom.com"\n' > /root/.config/powershell/Microsoft.PowerShell_profile.ps1
 
-# Copy the script provided in your previous prompt
 COPY DownloadToken.ps1 /depot/vcf-download-tool/DownloadToken.ps1
 RUN chmod +x /depot/vcf-download-tool/DownloadToken.ps1
 
-#### SECTION: FINAL TOOLS & ENVIRONMENT ####
+#### SECTION: FINAL TOOLS & REPO CLONE ####
 
+# Git Global Config
+RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
+    git config --global user.name "teddy"
+
+# Clone Public Repository (No Token Needed)
+RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
+
+# Ensure VPN scripts from the repo are executable
+RUN chmod +x /root/tonjiak/vcf9/offlinedepot/vpn/*.sh
+
+# K9s and Ansible
 RUN mkdir -p /usr/share/ansible/collections && \
     ansible-galaxy collection install vmware.vmware_rest community.vmware -p /usr/share/ansible/collections
 ENV ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
 
-# Ensure 'path' and binary files exist in your local build directory
 COPY path/kubectl /usr/local/bin/
 COPY path/kubectl-vsphere /usr/local/bin/
 COPY VMware-ovftool-*.zip /root/
 COPY k8 /root/k8
 COPY ovftool /root/ovftool
 
-RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
-    git config --global user.name "teddy" && \
-    git config --global credential.helper store
-
-RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
-
 RUN wget https://github.com/derailed/k9s/releases/download/v0.50.18/k9s_Linux_amd64.tar.gz && \
     tar xvf k9s_Linux_amd64.tar.gz && cp k9s /usr/local/bin
-
-# VPN Scripts
-RUN mkdir -p /root/tonjiak/vcf9/offlinedepot/vpn && \
-    printf '#!/bin/bash\nset -x\nopenconnect -u "ty036880@broadcom.net" --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh portal.vpn.broadcom.com -b\n' > /root/tonjiak/vcf9/offlinedepot/vpn/vpn.up.sh && \
-    printf '#!/bin/bash\nset -x\nps aux | grep -v -e defunct -e grep | grep openconnect | awk "{print \$2}" | xargs kill -9\n' > /root/tonjiak/vcf9/offlinedepot/vpn/vpn.down.sh && \
-    chmod +x /root/tonjiak/vcf9/offlinedepot/vpn/vpn.up.sh /root/tonjiak/vcf9/offlinedepot/vpn/vpn.down.sh
 
 RUN echo "alias ls='ls --color=auto'\nalias ll='ls -alF'\nalias la='ls -A'\nalias l='ls -CF'\nunset LANG LC_ALL\nsource /usr/share/bash-completion/bash_completion\nsource <(kubectl completion bash)" >> /root/.bashrc
 
 # Startup Script
-RUN printf '#!/bin/bash\nmkdir -p /var/run/sshd\nservice nginx start\n/usr/sbin/sshd -D &\necho "VCF Manager Ready. Nginx and SSH started."\ntail -f /dev/null\n' > /usr/local/bin/start.sh && \
+RUN printf '#!/bin/bash\nmkdir -p /var/run/sshd\nservice nginx start\n/usr/sbin/sshd -D &\necho "VCF Manager Ready."\ntail -f /dev/null\n' > /usr/local/bin/start.sh && \
     chmod +x /usr/local/bin/start.sh
 
 WORKDIR /root
