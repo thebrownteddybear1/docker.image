@@ -11,13 +11,12 @@ services:
       - "/dev/net/tun:/dev/net/tun"
 
     ports:
-      - "2222:22"
       - "80:80"
       - "443:443"
 
     volumes:
       # Keep this one so your actual VCF downloads are safe on the host
-      - ./depot_data:/depot
+      - /depot_data:/depot
       # We removed the tonjiak mapping to prevent hiding the image files
 
     environment:

@@ -1,5 +1,6 @@
 #!/bin/bash
-# --- Configuration --- ### CHANGE THE TOKEN VALUE!!!
+set -x
+# --- Configuration --- ### CHANGE THE TOKEN VALUE!!! and version vcf version!!
 TOKEN_VALUE="Us2MqrBCCkIqKYqgMARZy2SdPfsY5VQz" 
 VCF_VERSION="9.0.2.0"
 DEPOT_PATH="/depot"
