@@ -16,17 +16,14 @@ RUN apt-get update && apt-get install -y \
 
 #### SECTION: DEPOT & NGINX CONFIGURATION ####
 
-# Create depot root
 RUN mkdir -p /depot && echo "Depot-EMEA" > /depot/index.html
 
-# Setup Nginx Password and SSL Certificate
 RUN htpasswd -bc /etc/nginx/.htpasswd depot_user "VMware1!" && \
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -keyout /etc/ssl/private/nginx-selfsigned.key \
     -out /etc/ssl/certs/nginx-selfsigned.crt \
     -subj "/C=BG/ST=Sof/L=/O=BRCM/OU=VCF/CN=depot.corp.internal/emailAddress=myemail@brcm.com"
 
-# Inject the specific Nginx server block
 RUN printf 'server {\n\
         listen 80 default_server;\n\
         listen [::]:80 default_server;\n\
@@ -48,21 +45,19 @@ RUN printf 'server {\n\
 
 #### SECTION: VCF DOWNLOAD TOOL & CONFIG UPDATES ####
 
-# Copy the tarball (Ensure this file is in your build directory)
-COPY vcf-download-tool-9.0.2.0.25151284.tar.gz /depot/
+# Copy the tool - using wildcard for versioning
+COPY vcf-download-tool-*.tar.gz /depot/
 
-# Extract and run SED replacements for staging
 RUN mkdir -p /depot/vcf-download-tool && \
-    mv /depot/vcf-download-tool-9.0.2.0.25151284.tar.gz /depot/vcf-download-tool/ && \
+    mv /depot/vcf-download-tool-*.tar.gz /depot/vcf-download-tool/ && \
     cd /depot/vcf-download-tool/ && \
-    tar -zxvf vcf-download-tool-9.0.2.0.25151284.tar.gz && \
+    tar -zxvf vcf-download-tool-*.tar.gz && \
+    # Using wildcard in sed to catch 'application-prod.properties' AND 'application-prodv2.properties'
     sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' \
-    /depot/vcf-download-tool/conf/application-prod.properties \
-    /depot/vcf-download-tool/conf/application-prodv.properties
+    /depot/vcf-download-tool/conf/application-prod*.properties
 
 #### SECTION: POWERSHELL & BROADCOM TOKEN SCRIPT ####
 
-# Install PowerShell
 RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
     dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb && \
     apt-get update && apt-get install -y powershell
@@ -74,43 +69,38 @@ $env:StagingClientId="7SxxUEoYtKYpRerCi6U0d3QWMFSa485UkbvorpRlO46h4fde"\n\
 $env:StagingClientSecret="PuW6Esb1qYRqcN92RAwzpqvRPteeIy5UNuR1ywE4oy09b4LQ4ijN4nHmY8TJbQaG"\n\
 $env:StagingUserEmail="svc.config-infra@broadcom.com"\n' > /root/.config/powershell/Microsoft.PowerShell_profile.ps1
 
-# Create the DownloadToken.ps1 script (simplified version for the container)
+# Copy the script provided in your previous prompt
 COPY DownloadToken.ps1 /depot/vcf-download-tool/DownloadToken.ps1
 RUN chmod +x /depot/vcf-download-tool/DownloadToken.ps1
 
 #### SECTION: FINAL TOOLS & ENVIRONMENT ####
 
-# Ansible Collections
 RUN mkdir -p /usr/share/ansible/collections && \
     ansible-galaxy collection install vmware.vmware_rest community.vmware -p /usr/share/ansible/collections
 ENV ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections
 
-# Kubernetes Tools & OVF (Ensure these exist in your local path/)
+# Ensure 'path' and binary files exist in your local build directory
 COPY path/kubectl /usr/local/bin/
 COPY path/kubectl-vsphere /usr/local/bin/
-COPY VMware-ovftool-5.0.0-24781994-lin.x86_64.zip /root/
+COPY VMware-ovftool-*.zip /root/
 COPY k8 /root/k8
 COPY ovftool /root/ovftool
 
-# Git Configuration
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
     git config --global user.name "teddy" && \
     git config --global credential.helper store
 
-# Clone Repository
 RUN git clone https://x-access-token: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@github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
 
-# K9s Installation
 RUN wget https://github.com/derailed/k9s/releases/download/v0.50.18/k9s_Linux_amd64.tar.gz && \
     tar xvf k9s_Linux_amd64.tar.gz && cp k9s /usr/local/bin
 
-# Broadcom VPN Scripts
+# VPN Scripts
 RUN mkdir -p /root/tonjiak/vcf9/offlinedepot/vpn && \
-    printf "#!/bin/bash\nset -x\nopenconnect -u 'ty036880@broadcom.net' --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh portal.vpn.broadcom.com -b" > /root/tonjiak/vcf9/offlinedepot/vpn/vpn.up.sh && \
-    printf "#!/bin/bash\nset -x\nps aux | grep -v -e defunct -e grep | grep openconnect | awk '{print \$2}' | xargs kill -9" > /root/tonjiak/vcf9/offlinedepot/vpn/vpn.down.sh && \
+    printf '#!/bin/bash\nset -x\nopenconnect -u "ty036880@broadcom.net" --protocol=gp --csd-wrapper /usr/libexec/openconnect/hipreport.sh portal.vpn.broadcom.com -b\n' > /root/tonjiak/vcf9/offlinedepot/vpn/vpn.up.sh && \
+    printf '#!/bin/bash\nset -x\nps aux | grep -v -e defunct -e grep | grep openconnect | awk "{print \$2}" | xargs kill -9\n' > /root/tonjiak/vcf9/offlinedepot/vpn/vpn.down.sh && \
     chmod +x /root/tonjiak/vcf9/offlinedepot/vpn/vpn.up.sh /root/tonjiak/vcf9/offlinedepot/vpn/vpn.down.sh
 
-# Bash Customization
 RUN echo "alias ls='ls --color=auto'\nalias ll='ls -alF'\nalias la='ls -A'\nalias l='ls -CF'\nunset LANG LC_ALL\nsource /usr/share/bash-completion/bash_completion\nsource <(kubectl completion bash)" >> /root/.bashrc
 
 # Startup Script
