@@ -1,0 +1,63 @@
+root@depot:~/tonjiak/vcf9/offlinedepot# cat 3setup.trust.sddc.mgr.readme
+https://knowledge.broadcom.com/external/article/316056/how-to-adddelete-custom-ca-certificates.html
+
+
+
+---------------------------------------------------------------------------------------------------------
+https://knowledge.broadcom.com/external/article/314606
+SDDC Manager has two keystores:
+
+/etc/vmware/vcf/commonsvcs/trusted_certificates.store
+
+(Password available in: /etc/vmware/vcf/commonsvcs/trusted_certificates.key)
+
+/etc/alternatives/jre/lib/security/cacerts
+
+(Password: changeit)
+
+
+Command to view the list of certificates in the SDDC Manager keystores:
+
+keytool -list -v -keystore /etc/vmware/vcf/commonsvcs/trusted_certificates.store --storepass $(cat /etc/vmware/vcf/commonsvcs/trusted_certificates.key)
+
+keytool -list -v -keystore /etc/alternatives/jre/lib/security/cacerts --storepass changeit
+
+
+keytool -list -v -alias depot -keystore /etc/vmware/vcf/commonsvcs/trusted_certificates.store --storepass $(cat /etc/vmware/vcf/commonsvcs/trusted_certificates.key)
+
+keytool -list -v -alias depot -keystore /etc/alternatives/jre/lib/security/cacerts --storepass changeit
+
+
+
+
+Command to add a cert to the SDDC Manager keystores:
+
+keytool -importcert -alias <aliasname> -file <certificate file> -keystore /etc/vmware/vcf/commonsvcs/trusted_certificates.store --storepass <trust store key>
+
+keytool -importcert -alias <aliasname> -file <certificate file> -keystore /etc/alternatives/jre/lib/security/cacerts --storepass changeit
+ Command to remove a certificate from the SDDC Manager keystores:
+
+keytool -delete -alias <aliasname> -keystore /etc/vmware/vcf/commonsvcs/trusted_certificates.store -storepass <trust store key>
+
+keytool -delete -alias <aliasname> -keystore /etc/alternatives/jre/lib/security/cacerts -storepass changeit
+
+
+---------------------------------------------------------------------------------------------------------
+
+ssh sddcmgr
+
+openssl s_client -connect depot.corp.internal:9443
+
+copy the retreived cert int a file
+
+keytool -delete -alias depot -keystore /etc/vmware/vcf/commonsvcs/trusted_certificates.store --storepass $(cat /etc/vmware/vcf/commonsvcs/trusted_certificates.key)
+
+keytool -importcert -alias depot -file /home/vcf/server.crt -keystore /etc/vmware/vcf/commonsvcs/trusted_certificates.store --storepass $(cat /etc/vmware/vcf/commonsvcs/trusted_certificates.key)
+
+
+keytool -delete -alias depot -file /home/vcf/server.crt -keystore /etc/alternatives/jre/lib/security/cacerts --storepass changeit
+
+keytool -importcert -alias depot -file /home/vcf/server.crt -keystore /etc/alternatives/jre/lib/security/cacerts --storepass changeit
+
+/opt/vmware/vcf/operationsmanager/scripts/cli/sddcmanager_restart_services.sh
+
