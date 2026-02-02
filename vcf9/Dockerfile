@@ -49,13 +49,13 @@ RUN printf 'server {\n\
 #### SECTION: VCF DOWNLOAD TOOL & CONFIG UPDATES ####
 
 # Copy the tarball (Ensure this file is in your build directory)
-COPY vcf-download-tool-9.0.0.0.24703747.tar.gz /depot/
+COPY vcf-download-tool-9.0.2.0.25151284.tar /depot/
 
 # Extract and run SED replacements for staging
 RUN mkdir -p /depot/vcf-download-tool && \
-    mv /depot/vcf-download-tool-9.0.0.0.24703747.tar.gz /depot/vcf-download-tool/ && \
+    mv /depot/vcf-download-tool-9.0.2.0.25151284.tar /depot/vcf-download-tool/ && \
     cd /depot/vcf-download-tool/ && \
-    tar -zxvf vcf-download-tool-9.0.0.0.24703747.tar.gz && \
+    tar -zxvf vcf-download-tool-9.0.2.0.25151284.tar && \
     sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' \
     /depot/vcf-download-tool/conf/application-prod.properties \
     /depot/vcf-download-tool/conf/application-prodv.properties
