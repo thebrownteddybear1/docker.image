@@ -1,3 +1,19 @@
+2. Make it Permanent
+
+To ensure this survives a reboot, you must edit your network interfaces file.
+
+    Open the config: vi /etc/network/interfaces
+
+    Find the section for iface nic0.
+
+    Add the MTU line so it looks like this:
+    Plaintext
+
+    iface nic0 inet manual
+        mtu 9000
+
+
+
 Here is your VCF 9 Golden Configuration summary and the automation script combined into one easy-to-save block. You can copy this entire section into a text file (e.g., vcf9_reference.txt) for the next time we build this.
 VCF 9 Proxmox Golden Configuration Reference
 1. The Core Components
@@ -91,3 +107,23 @@ Step 3: Start ESXi Nodes ONE BY ONE.
         Wait EXACTLY 60 SECONDS between each 'qm start'.
 Step 4: Start VCF Cloud Builder (106).
 ============================================================
+
+for tap in $(ip link show | grep 'tap' | awk -F': ' '{print $2}' | cut -d'@' -f1); do 
+  echo "Setting $tap to promiscuous mode..."
+  ip link set dev $tap promisc on
+done
+
+
+# 1. Set every active tap to MTU 9000 and Promisc ON
+for tap in $(ip link show | grep 'tap' | awk -F': ' '{print $2}' | cut -d'@' -f1); do 
+  echo "Optimizing $tap..."
+  ip link set dev $tap mtu 9000
+  ip link set dev $tap promisc on
+done
+
+# 2. Ensure the bridge itself is definitely 9000
+ip link set dev vmbr0 mtu 9000
+
+# 3. Double-verify the Netfilter bypass is active
+echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables
+echo 0 > /proc/sys/net/bridge/bridge-nf-call-arptables
