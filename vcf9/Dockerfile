@@ -71,15 +71,11 @@ RUN chmod +x /depot/vcf-download-tool/DownloadToken.ps1
 
 #### SECTION: FINAL TOOLS & REPO CLONE ####
 
-# Git Global Config
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
     git config --global user.name "teddy"
 
-# Clone Public Repository (No Token Needed)
+# Clone Public Repository - No chmod follows
 RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
-
-# Ensure VPN scripts from the repo are executable
-RUN chmod +x /root/tonjiak/vcf9/offlinedepot/vpn/*.sh
 
 # K9s and Ansible
 RUN mkdir -p /usr/share/ansible/collections && \
