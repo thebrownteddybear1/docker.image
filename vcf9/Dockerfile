@@ -45,20 +45,26 @@ RUN printf 'server {\n\
 
 #### SECTION: VCF DOWNLOAD TOOL IN /ROOT/DOWNLOADTOOL ####
 
+# 1. Create the target directory
 RUN mkdir -p /root/downloadtool
+
+# 2. Copy the compressed file
 COPY vcf-download-tool-*.tar.gz /root/downloadtool/
 
-# 1. Gunzip the .gz file to create a .tar file
-# 2. Extract the .tar file (using --strip-components=1 to avoid nested folders)
+# 3. Two-step extraction as requested: gunzip then tar
+# We remove --strip-components because your tree shows a complex nested structure 
+# (like vmware-umds-distrib and others) that we need to preserve.
 RUN cd /root/downloadtool && \
     gunzip vcf-download-tool-*.tar.gz && \
     tar -xvf vcf-download-tool-*.tar && \
     rm vcf-download-tool-*.tar
 
-# 3. Update the config (using find to be safe against exact filename variations)
+# 4. Robust Configuration Update
+# Your tree shows files like 'vvs-config.json' and various 'config.xml' files.
+# This command will search the entire /root/downloadtool directory 
+# for any file matching 'application-prod*.properties' and update the host.
 RUN find /root/downloadtool -name "application-prod*.properties" -exec \
     sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' {} +
-
 #### SECTION: POWERSHELL & BROADCOM TOKEN SCRIPT ####
 
 RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
