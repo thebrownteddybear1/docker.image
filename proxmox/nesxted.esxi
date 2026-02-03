@@ -43,3 +43,13 @@ smbios1: uuid=035c5a48-ff3c-41a4-8cd7-b1f5db05b40a
 sockets: 2
 vmgenid: 866f19e4-c994-405d-ba59-93fbef9d32d9
 root@pve:~# 
+
+
+for vmid in 100 101 102 103 105 106; do
+  echo "Optimizing VM $vmid..."
+  qm set $vmid --cpu "host,flags=+hv-tlbflush;+hv-evmcs;+aes;+pdpe1gb" \
+               --numa 1 \
+               --hugepages 1024 \
+               --balloon 0
+done
+

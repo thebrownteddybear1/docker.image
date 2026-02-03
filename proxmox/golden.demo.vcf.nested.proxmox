@@ -127,3 +127,26 @@ ip link set dev vmbr0 mtu 9000
 # 3. Double-verify the Netfilter bypass is active
 echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables
 echo 0 > /proc/sys/net/bridge/bridge-nf-call-arptables
+
+
+root@pve:/etc/pve/qemu-server# grep "net" /etc/pve/qemu-server/*.conf
+/etc/pve/qemu-server/100.conf:net0: vmxnet3=BC:24:11:96:52:18,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/100.conf:net1: vmxnet3=BC:24:11:D9:21:6B,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/101.conf:net0: vmxnet3=BC:24:11:D0:1C:D3,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/101.conf:net1: vmxnet3=BC:24:11:DE:EE:33,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/102.conf:net0: vmxnet3=BC:24:11:11:40:38,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/102.conf:net1: vmxnet3=BC:24:11:F1:17:C1,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/103.conf:net0: vmxnet3=BC:24:11:45:24:48,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/103.conf:net1: vmxnet3=BC:24:11:02:83:88,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/104.conf:net0: virtio=BC:24:11:12:2C:25,bridge=vmbr0
+/etc/pve/qemu-server/105.conf:net0: vmxnet3=BC:24:11:50:86:C6,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/105.conf:net1: vmxnet3=BC:24:11:05:32:E5,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/106.conf:net0: vmxnet3=BC:24:11:1A:23:7B,bridge=vmbr0
+/etc/pve/qemu-server/106.conf:net1: vmxnet3=BC:24:11:02:31:01,bridge=vmbr0
+/etc/pve/qemu-server/107.conf:boot: order=sata0;ide2;net0
+/etc/pve/qemu-server/107.conf:net0: vmxnet3=BC:24:11:F3:B5:A0,bridge=vmbr0
+/etc/pve/qemu-server/108.conf:net0: vmxnet3=BC:24:11:8A:34:65,bridge=vmbr0,queues=16
+/etc/pve/qemu-server/109.conf:net0: vmxnet3=BC:24:11:6C:ED:DC,bridge=vmbr0,firewall=0
+/etc/pve/qemu-server/109.conf:net1: vmxnet3=BC:24:11:B1:BD:70,bridge=vmbr0,firewall=0
+sed -i 's/bridge=vmbr0/bridge=vmbr0,mtu=9000/' /etc/pve/qemu-server/*.conf
+

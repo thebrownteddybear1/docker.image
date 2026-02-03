@@ -24,3 +24,4 @@ systemctl restart rpcbind
 
 #remember to set noatime and discards in the fstab @!@@@@@!!!!!!
 #/dev/disk/by-id/dm-uuid-LVM-W0wVx2OPQX5A7JehV6XMagigwoEMiyn7w2G378nc0eMmg6gmIqPhpy4kXOlvtdxK /mnt/nfs1 xfs defaults,noatime,nodiscard 0 1
+

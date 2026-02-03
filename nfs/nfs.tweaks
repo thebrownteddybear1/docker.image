@@ -1,0 +1,61 @@
+# Update the thread count in the configuration file
+sed -i 's/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=64/' /etc/default/nfs-kernel-server
+sed -i 's/^THREADS=.*/THREADS=64/' /etc/default/nfs-kernel-server
+
+# Restart the service
+systemctl restart nfs-kernel-server
+
+# Create the tuning file for VCF 9
+cat <<EOF > /etc/sysctl.d/99-vcf-jumbo-frames.conf
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.tcp_rmem=4096 87380 16777216
+net.ipv4.tcp_wmem=4096 65536 16777216
+net.core.netdev_max_backlog=5000
+EOF
+
+# Apply the settings immediately
+sysctl --system
+
+# Add the variable to the end of the config file
+echo 'RPCNFSDCOUNT=64' >> /etc/default/nfs-kernel-server
+
+# Restart to apply
+systemctl restart nfs-kernel-server
+
+
+# Create the override directory
+mkdir -p /etc/systemd/system/nfs-server.service.d/
+
+# Inject the 64-thread limit
+cat <<EOF > /etc/systemd/system/nfs-server.service.d/threads.conf
+[Service]
+ExecStart=
+ExecStart=/usr/sbin/rpc.nfsd 64
+EOF
+
+# Reload and restart
+systemctl daemon-reload
+systemctl restart nfs-server
+ps aux | grep nfsd | grep -v grep | wc -l
+
+for i in {11..16}; do
+  echo "Setting MTU 9000 on ESXi 192.168.50.$i..."
+  sshpass -p 'VMware1!VMware1!' ssh -o StrictHostKeyChecking=no root@192.168.50.$i \
+  "esxcfg-vswitch -m 9000 vSwitch0 && esxcli network ip interface set -i vmk0 -m 9000"
+done
+
+#proxmox
+2. Make it Permanent
+
+To ensure this survives a reboot, you must edit your network interfaces file.
+
+    Open the config: vi /etc/network/interfaces
+
+    Find the section for iface nic0.
+
+    Add the MTU line so it looks like this:
+    Plaintext
+
+    iface nic0 inet manual
+        mtu 9000
