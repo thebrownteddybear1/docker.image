@@ -45,6 +45,53 @@ for i in {11..16}; do
   "esxcfg-vswitch -m 9000 vSwitch0 && esxcli network ip interface set -i vmk0 -m 9000"
 done
 
+
+tweaks fo the nfs server
+check also the mtu size of the nic
+cat <<EOF > /etc/sysctl.d/99-vcf-jumbo-frames.conf
+# VCF & Jumbo Frames Tuning
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.tcp_rmem=4096 87380 16777216
+net.ipv4.tcp_wmem=4096 65536 16777216
+net.core.netdev_max_backlog=5000
+
+# Write Caching for 100GB RAM
+vm.dirty_ratio=40
+vm.dirty_background_ratio=10
+EOF
+sysctl -p /etc/sysctl.d/99-vcf-jumbo-frames.conf
+
+watch -n 1 "grep -E 'Dirty|Writeback' /proc/meminfo"
+
+check for drops
+root@nfsserver:/etc/sysctl.d# ethtool -S ens34 | grep -E "drop|error|miss|fifo"
+       drv dropped tx total: 0
+       drv dropped tx total: 0
+       drv dropped tx total: 0
+       drv dropped tx total: 0
+       drv dropped tx total: 0
+       drv dropped tx total: 0
+       drv dropped tx total: 0
+       drv dropped tx total: 0
+       drv dropped rx total: 0
+          xdp drops: 0
+       drv dropped rx total: 0
+          xdp drops: 0
+       drv dropped rx total: 0
+          xdp drops: 0
+       drv dropped rx total: 0
+          xdp drops: 0
+       drv dropped rx total: 0
+          xdp drops: 0
+       drv dropped rx total: 0
+          xdp drops: 0
+       drv dropped rx total: 0
+          xdp drops: 0
+       drv dropped rx total: 0
+          xdp drops: 0
+root@nfsserver:/etc/sysctl.d#
+
 #proxmox
 2. Make it Permanent
 
