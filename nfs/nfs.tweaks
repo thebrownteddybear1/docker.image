@@ -92,6 +92,19 @@ root@nfsserver:/etc/sysctl.d# ethtool -S ens34 | grep -E "drop|error|miss|fifo"
           xdp drops: 0
 root@nfsserver:/etc/sysctl.d#
 
+increase threads to 254 as 16 cpu immediately
+root@nfsserver:~# # This searches for the RPCNFSDCOUNT line and replaces the number with 256
+sudo sed -i 's/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=256/' /etc/default/nfs-kernel-server
+
+# Restart the NFS server to hire the new workers
+sudo systemctl restart nfs-kernel-server
+root@nfsserver:~# cat /proc/net/rpc/nfsd | grep th
+th 64 0 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000
+root@nfsserver:~# grep "RPCNFSDCOUNT" /etc/default/nfs-kernel-server
+RPCNFSDCOUNT=256
+
+
+
 #proxmox
 2. Make it Permanent
 
