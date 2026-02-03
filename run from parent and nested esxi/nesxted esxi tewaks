@@ -1,0 +1,44 @@
+
+
+Since you have already set the CPU Affinity, adding NUMA Node Affinity is the final step to "lock" your VMs to the local physical RAM of the Platinum Xeon sockets. This prevents data from having to travel across the UPI/QPI bridge between CPUs, which would cause a massive latency hit.
+🛠️ How to set NUMA Node Affinity
+
+You must set this in the Configuration Parameters for each VM.
+
+    Shut down the Nested ESXi VM (recommended for these types of hardware-level changes).
+
+    Right-click the VM and select Edit Settings.
+
+    Click on the VM Options tab at the top.
+
+    Expand the Advanced section.
+
+    Look for Configuration Parameters and click the Edit Configuration... button.
+
+    Click Add Configuration Params and enter the following for your two groups:
+
+For Hosts on Socket 0 (esx11, esx12, esx13)
+Key	Value
+numa.nodeAffinity	0
+For Hosts on Socket 1 (esx14, esx15, esx16)
+Key	Value
+numa.nodeAffinity	1
+
+
+
+🧠 Important Add-on: numa.preferHT
+
+Because you are allocating 32 vCPUs to each host, but each physical socket only has 28 real cores, you are effectively using Hyperthreading (the extra 4 vCPUs per host).
+
+In the same Configuration Parameters list, I strongly recommend adding this for all 6 hosts:
+Key	Value
+numa.preferHT	true
+
+Why? By default, VMware sometimes tries to find a "real" core on the other s
+ocket rather than using a hyperthread on the local socket. Setting this to true
+tells the VM: "I would rather use a local hyperthread than cross the bridge to the other CPU."
+
+
+set Scheduling Affinity 0-55 for numa 0
+set Scheduling Affinity 56-111 for numa 1
+
