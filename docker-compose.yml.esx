@@ -5,7 +5,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      network: host  # ← THIS IS CRITICAL
     container_name: esx-container
-    network_mode: "host"  # Runtime network
+    network_mode: "host"
     restart: unless-stopped
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-} # Pass this from your host env if needed
+    stdin_open: true # Equivalent to -i
+    tty: true        # Equivalent to -t
