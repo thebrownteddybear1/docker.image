@@ -50,7 +50,9 @@
 # management domain vcenter
 192.168.50.33 mgtvc33.corp.internal
 
-# vcf mgt domain nsx 192.168.54.1 - 192.168.54.100
+# vcf mgt domain  
+# mgt htep 192.168.54.1 - 192.168.54.20
+
 192.168.50.34 mgtnsxvip34.corp.internal
 192.168.50.35 mgtnsx35.corp.internal
 192.168.50.36 mgtnsx36.corp.internal
