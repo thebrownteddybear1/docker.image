@@ -20,7 +20,7 @@ You must set this in the Configuration Parameters for each VM.
 For Hosts on Socket 0 (esx11, esx12, esx13)
 Key	Value
 numa.nodeAffinity	0
-For Hosts on Socket 1 (esx14, esx15, esx16)
+For Hosts on Socket 1 (esx14, esx15, esx16,esx17,esx18,esx19)
 Key	Value
 numa.nodeAffinity	1
 
@@ -41,4 +41,9 @@ tells the VM: "I would rather use a local hyperthread than cross the bridge to t
 
 set Scheduling Affinity 0-55 for numa 0
 set Scheduling Affinity 56-111 for numa 1
+
+set the cpu size to the largest vm + 8 cpu
+eg. vra needs 24, so 24 + 8 = 32
+this will help less the congetion for cstop wait where now it will wait for 32 cpu thread to be open vs 56
+so it doesn't mean more cpu to a vm is better. everytime the vm wants to run something, it has to wait till there are XX number of threads available before it will be allowd to
 
