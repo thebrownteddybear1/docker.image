@@ -46,7 +46,7 @@ keytool -delete -alias <aliasname> -keystore /etc/alternatives/jre/lib/security/
 
 ssh sddcmgr
 
-openssl s_client -connect depot.corp.internal:9443
+openssl s_client -connect depot.corp.internal:443
 
 copy the retreived cert int a file
 
