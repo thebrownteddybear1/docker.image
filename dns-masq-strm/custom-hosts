@@ -59,6 +59,8 @@
 # sddc manager
 192.168.50.38 mgtsddc38.corp.internal
 
+#worklod domain name = wlk
+#workload sso = wlk.local
 # Work load vcenter
 192.168.50.39 wlkvc39.corp.internal
 
