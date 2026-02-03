@@ -49,7 +49,7 @@ RUN printf 'server {\n\
 RUN mkdir -p /root/downloadtool
 
 # 2. Copy the compressed file
-COPY vcf-download-tool-*.tar.gz /root/downloadtool/
+COPY vcf-download-tool-9.0.2.0.25151284.tar.gz /root/downloadtool/
 
 # 3. Two-step extraction as requested: gunzip then tar
 # We remove --strip-components because your tree shows a complex nested structure 
