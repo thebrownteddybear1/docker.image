@@ -3,7 +3,7 @@ FROM ubuntu:latest
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Update apt and install all required packages (including gzip)
+# 1. Update apt and install all required packages
 RUN apt-get update && apt-get install -y \
     apt-transport-https ca-certificates curl gnupg lsb-release \
     tree nano openssh-server iproute2 iputils-ping net-tools \
@@ -45,30 +45,20 @@ RUN printf 'server {\n\
 
 #### SECTION: VCF DOWNLOAD TOOL IN /ROOT/DOWNLOADTOOL ####
 
-# 1. Create the target directory
 RUN mkdir -p /root/downloadtool
 
-# 2. Copy the compressed file
+# Copy the compressed file
 COPY vcf-download-tool-9.0.2.0.25151284.tar.gz /root/downloadtool/
 
-# 3. Two-step extraction as requested: gunzip then tar
-# We remove --strip-components because your tree shows a complex nested structure 
-# (like vmware-umds-distrib and others) that we need to preserve.
+# Extraction and Configuration Update (Fixed Syntax)
 RUN cd /root/downloadtool && \
     gunzip vcf-download-tool-*.tar.gz && \
     tar -xvf vcf-download-tool-*.tar && \
- #   rm vcf-download-tool-*.tar
-
-# 4. Robust Configuration Update
-# Your tree shows files like 'vvs-config.json' and various 'config.xml' files.
-# This command will search the entire /root/downloadtool directory 
-# for any file matching 'application-prod*.properties' and update the host.
-
-###DO THIS MANUALLY
-#RUN find /root/downloadtool -name "application-prod*.properties" -exec \
- #   sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' {} +
+    find /root/downloadtool -name "application-prod*.properties" -exec \
+    sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' {} +
 
 COPY edit.me.add.token.downloadtool.sh /root/downloadtool/edit.me.add.token.downloadtool.sh
+
 #### SECTION: POWERSHELL & BROADCOM TOKEN SCRIPT ####
 
 RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
@@ -86,11 +76,12 @@ RUN chmod +x /root/downloadtool/DownloadToken.ps1
 
 #### SECTION: FINAL TOOLS & REPO CLONE ####
 
-RUN git config --global user.email "thebrownteddybear@gmail.com" && \ 
+RUN git config --global user.email "thebrownteddybear@gmail.com" && \
     git config --global user.name "teddy"
 
 RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
 
+# Ensure these paths/files exist in your local build context
 COPY path/kubectl /usr/local/bin/
 COPY path/kubectl-vsphere /usr/local/bin/
 COPY VMware-ovftool-*.zip /root/
