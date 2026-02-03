@@ -58,7 +58,8 @@ RUN cd /root/downloadtool && \
     sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' {} +
 
 COPY edit.me.add.token.downloadtool.sh /root/downloadtool/edit.me.add.token.downloadtool.sh
-RUN sed -i 's/\r$//' /root/downloadtool/edit.me.add.token.downloadtool.sh
+RUN sed -i 's/\r$//' /root/downloadtool/edit.me.add.token.downloadtool.sh && \
+    chmod +x /root/downloadtool/edit.me.add.token.downloadtool.sh
 #### SECTION: POWERSHELL & BROADCOM TOKEN SCRIPT ####
 
 RUN wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
