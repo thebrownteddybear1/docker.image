@@ -63,8 +63,10 @@ RUN cd /root/downloadtool && \
 # Your tree shows files like 'vvs-config.json' and various 'config.xml' files.
 # This command will search the entire /root/downloadtool directory 
 # for any file matching 'application-prod*.properties' and update the host.
-RUN find /root/downloadtool -name "application-prod*.properties" -exec \
-    sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' {} +
+
+###DO THIS MANUALLY
+#RUN find /root/downloadtool -name "application-prod*.properties" -exec \
+ #   sed -i 's/lcm.depot.adapter.host=dl.broadcom.com/lcm.depot.adapter.host=dl-pstg.broadcom.com/g' {} +
 
 COPY edit.me.add.token.downloadtool.sh /root/downloadtool/edit.me.add.token.downloadtool.sh
 #### SECTION: POWERSHELL & BROADCOM TOKEN SCRIPT ####
