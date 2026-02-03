@@ -1,0 +1,21 @@
+# Install sshpass if you don't have it
+sudo apt update && sudo apt install sshpass -y
+
+# Define your targets
+HOSTS=("192.168.50.17" "192.168.50.18" "192.168.50.19")
+PASS='VMware1!VMware1!'
+
+for IP in "${HOSTS[@]}"; do
+    echo "--- Configuring $IP ---"
+    
+    # 1. Set vSwitch0 MTU to 9000
+    sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no root@$IP "esxcli network vswitch standard set -m 9000 -v vSwitch0"
+    
+    # 2. Set VMkernel 0 (Management) MTU to 9000
+    sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no root@$IP "esxcli network ip interface set -i vmk0 -m 9000"
+    
+    # 3. Optional: Set DNS to your local container while we're at it
+    sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no root@$IP "esxcli network ip dns server add --server=192.168.50.53"
+    
+    echo "$IP is now set to 9K MTU and pointed to DNS."
+done
