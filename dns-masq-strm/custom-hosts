@@ -1,4 +1,9 @@
-
+#vmotion
+#192.168.51.1-0
+#nfs
+#192.168.50.70-80
+#htep
+#192.168.54.1-192.168.54.100
 # esx hosts
 192.168.50.11 esx11.corp.internal
 192.168.50.12 esx12.corp.internal
