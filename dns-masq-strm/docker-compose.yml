@@ -3,27 +3,11 @@ services:
     image: strm/dnsmasq:latest
     container_name: dnsmasq
     restart: unless-stopped
-    ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-    environment:
-      DNSMASQ_CONF: /etc/dnsmasq.conf
-    volumes:
-      - ./dnsmasq.conf:/etc/dnsmasq.conf:ro
-      - ./custom-hosts:/etc/dnsmasq-hosts:ro
-      - ./dnsmasq.leases:/var/lib/misc/dnsmasq.leases
+    network_mode: host  # No "ports" section needed now
     cap_add:
       - NET_ADMIN
       - NET_RAW
       - NET_BIND_SERVICE
-    networks:
-      dnsnet:
-        ipv4_address: 172.22.0.2
-
-networks:
-  dnsnet:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.22.0.0/24
-          gateway: 172.22.0.1
+    volumes:
+      - ./dnsmasq.conf:/etc/dnsmasq.conf:ro
+      - ./custom-hosts:/etc/dnsmasq-hosts:ro
