@@ -3,6 +3,8 @@ vsphere.local
 VMware1!VMware1!
 wlkvc39.corp.internal
 cluster1
+cluster2
+cluster3
 zone1
 
 wlknsxnode41.corp.internal
@@ -10,11 +12,16 @@ wlknsxvip40.corp.internal
 
 
 wlk-cluster1-ds-nfs1
+wlk-cluster2-ds-nfs1
+wlk-cluster3-ds-nfs1
 
 /mnt/nfs1
 
 192.168.50.54
+custom switch
 
+
+copy from default
 
 
 wlkhtep
