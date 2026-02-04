@@ -5,4 +5,240 @@ wlkvc39.corp.internal
 cluster1
 zone1
 
+wlknsxnode41.corp.internal
+wlknsxvip40.corp.internal
+
+
+wlk-cluster1-ds-nfs1
+
+/mnt/nfs1
+
+192.168.50.54
+
+
+
+wlkhtep
+
+192.168.54.0/24
+
+192.168.54.101-192.168.54.150
+192.168.54.254
+
+
+{
+  "domainName": "wlk",
+  "computeSpec": {
+    "clusterSpecs": [
+      {
+        "name": "cluster1",
+        "advancedOptions": {
+          "highAvailability": {
+            "enabled": true
+          }
+        },
+        "datastoreSpec": {
+          "nfsDatastoreSpecs": [
+            {
+              "datastoreName": "wlk-cluster1-ds-nfs1",
+              "nasVolume": {
+                "serverName": [
+                  "192.168.50.54"
+                ],
+                "path": "/mnt/nfs1",
+                "readOnly": false
+              }
+            }
+          ]
+        },
+        "networkSpec": {
+          "nsxClusterSpec": {
+            "nsxTClusterSpec": {
+              "uplinkProfiles": [
+                {
+                  "name": "cluster1-vds-uplink-profile-1",
+                  "transportVlan": 54,
+                  "teamings": [
+                    {
+                      "name": "DEFAULT",
+                      "policy": "LOADBALANCE_SRCID",
+                      "activeUplinks": [
+                        "uplink-1",
+                        "uplink-2"
+                      ],
+                      "standByUplinks": []
+                    }
+                  ]
+                }
+              ],
+              "ipAddressPoolsSpec": [
+                {
+                  "name": "wlkhtep",
+                  "description": "wlkhtep",
+                  "ignoreUnavailableNsxtCluster": false,
+                  "subnets": [
+                    {
+                      "ipAddressPoolRanges": [
+                        {
+                          "start": "192.168.54.101",
+                          "end": "192.168.54.150"
+                        }
+                      ],
+                      "cidr": "192.168.54.0/24",
+                      "gateway": "192.168.54.254"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "vdsSpecs": [
+            {
+              "name": "cluster1-vds-01",
+              "mtu": 9000,
+              "portGroupSpecs": [
+                {
+                  "name": "cluster1-vds-01-pg-mgmt",
+                  "transportType": "MANAGEMENT",
+                  "activeUplinks": [
+                    "uplink1",
+                    "uplink2"
+                  ],
+                  "standByUplinks": null,
+                  "teamingPolicy": "loadbalance_loadbased"
+                },
+                {
+                  "name": "cluster1-vds-01-pg-vmotion",
+                  "transportType": "VMOTION",
+                  "activeUplinks": [
+                    "uplink1",
+                    "uplink2"
+                  ],
+                  "standByUplinks": null,
+                  "teamingPolicy": "loadbalance_loadbased"
+                },
+                {
+                  "name": "cluster1-vds-01-pg-nfs",
+                  "transportType": "NFS",
+                  "activeUplinks": [
+                    "uplink1",
+                    "uplink2"
+                  ],
+                  "standByUplinks": [],
+                  "teamingPolicy": "loadbalance_loadbased"
+                }
+              ],
+              "nsxtSwitchConfig": {
+                "transportZones": [
+                  {
+                    "name": "overlay-tz-wlknsxvip40",
+                    "transportType": "OVERLAY"
+                  }
+                ],
+                "hostSwitchOperationalMode": "STANDARD"
+              }
+            }
+          ],
+          "networkProfiles": [
+            {
+              "name": "networkConfigProfile",
+              "isDefault": true,
+              "nsxtHostSwitchConfigs": [
+                {
+                  "vdsName": "cluster1-vds-01",
+                  "uplinkProfileName": "cluster1-vds-uplink-profile-1",
+                  "vdsUplinkToNsxUplink": [
+                    {
+                      "vdsUplinkName": "uplink1",
+                      "nsxUplinkName": "uplink-1"
+                    },
+                    {
+                      "vdsUplinkName": "uplink2",
+                      "nsxUplinkName": "uplink-2"
+                    }
+                  ],
+                  "ipAddressPoolName": "wlkhtep"
+                }
+              ]
+            }
+          ]
+        },
+        "hostSpecs": [
+          {
+            "id": "ee46fe1d-7d35-4d69-90c9-4a58982ee212",
+            "hostNetworkSpec": {
+              "vmNics": [
+                {
+                  "id": "vmnic0",
+                  "uplink": "uplink1",
+                  "vdsName": "cluster1-vds-01"
+                },
+                {
+                  "id": "vmnic1",
+                  "uplink": "uplink2",
+                  "vdsName": "cluster1-vds-01"
+                }
+              ]
+            },
+            "licenseKey": null
+          },
+          {
+            "id": "a889f2fb-02f0-4207-bf57-b73ca8bbb345",
+            "hostNetworkSpec": {
+              "vmNics": [
+                {
+                  "id": "vmnic0",
+                  "uplink": "uplink1",
+                  "vdsName": "cluster1-vds-01"
+                },
+                {
+                  "id": "vmnic1",
+                  "uplink": "uplink2",
+                  "vdsName": "cluster1-vds-01"
+                }
+              ]
+            },
+            "licenseKey": null
+          }
+        ],
+        "clusterImageId": "5b50895a-995f-4f9e-8d3f-01519f454528"
+      }
+    ]
+  },
+  "nsxTSpec": {
+    "licenseKey": null,
+    "nsxManagerAdminPassword": "VMware1!VMware1!",
+    "nsxManagerAuditPassword": "VMware1!VMware1!",
+    "vipFqdn": "wlknsxvip40.corp.internal",
+    "nsxManagerSpecs": [
+      {
+        "name": "wlknsxnode41",
+        "networkDetailsSpec": {
+          "dnsName": "wlknsxnode41.corp.internal",
+          "gateway": "192.168.50.254",
+          "subnetMask": "255.255.255.0"
+        }
+      }
+    ],
+    "formFactor": "medium"
+  },
+  "vcenterSpec": {
+    "name": "wlkvc39",
+    "rootPassword": "VMware1!VMware1!",
+    "datacenterName": "wlk-DC",
+    "networkDetailsSpec": {
+      "dnsName": "wlkvc39.corp.internal",
+      "gateway": "192.168.50.254",
+      "subnetMask": "255.255.255.0"
+    }
+  },
+  "ssoDomainSpec": {
+    "ssoDomainName": "vsphere.local",
+    "ssoDomainPassword": "VMware1!VMware1!"
+  },
+  "deployWithoutLicenseKeys": true
+} 
+CANCEL
+BACK
+FINISH
+End of Modal Content
 
