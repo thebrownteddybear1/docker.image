@@ -1,9 +1,9 @@
 services:
   dnsmasq:
-    build: .             # This points to the Dockerfile in the current folder
+    image: strm/dnsmasq:latest
     container_name: dnsmasq
     restart: unless-stopped
-    network_mode: host
+    network_mode: host  # No "ports" section needed now
     cap_add:
       - NET_ADMIN
       - NET_RAW
