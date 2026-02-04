@@ -75,6 +75,13 @@ $env:StagingUserEmail="svc.config-infra@broadcom.com"\n' > /root/.config/powersh
 COPY DownloadToken.ps1 /root/downloadtool/DownloadToken.ps1
 RUN chmod +x /root/downloadtool/DownloadToken.ps1
 
+
+#### SECTION: INSTALL POWERCLI MODULES ####
+RUN pwsh -Command 'Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted; \
+    Install-Module -Name VMware.PowerCLI -Confirm:$false -Force; \
+    Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -ParticipateInCEIP $false -Confirm:$false'
+
+    
 #### SECTION: FINAL TOOLS & REPO CLONE ####
 
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \
