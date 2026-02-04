@@ -67,7 +67,7 @@
 192.168.50.39 wlkvc39.corp.internal
 
 # workload nsx 
-#workload htep 192.168.54.101-192.168.54.200
+#workload htep 192.168.54.101-192.168.54.20.150
 #just reuse the same ip pool when you add cluster via custom switch
 
 192.168.50.40 wlknsxvip40.corp.internal
