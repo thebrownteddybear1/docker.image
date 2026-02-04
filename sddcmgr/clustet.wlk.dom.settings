@@ -10,6 +10,10 @@ zone1
 wlknsxnode41.corp.internal
 wlknsxvip40.corp.internal
 
+###errors
+	
+Message: The NFS mount point with datastore name wlk-cluster1-ds-nfs1 already exists on vCenter Server. Either use same datastore name as existing wlk-cluster2-ds-nfs1 or use different NFS mount point.
+
 
 wlk-cluster1-ds-nfs1
 wlk-cluster2-ds-nfs1
