@@ -73,3 +73,10 @@
 
 192.168.50.40 wlknsxvip40.corp.internal
 192.168.50.41 wlknsxnode41.corp.internal
+
+# AVI workload controller
+192.168.50.42 wlkavivip42.corp.internal
+192.168.50.43 wlkavinode43.corp.internal
+192.168.50.44 wlkavinode44.corp.internal
+192.168.50.45 wlkavinode45.corp.internal
+
