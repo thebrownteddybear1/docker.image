@@ -82,4 +82,4 @@
 
 #workload edge
 192.168.50.46 edge1-cluster-1.corp.internal
-192.168.50.46 edge2-cluster-1.corp.internal
+192.168.50.47 edge2-cluster-1.corp.internal
