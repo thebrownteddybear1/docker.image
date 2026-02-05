@@ -22,9 +22,7 @@ cat cert.data, notice the line feeds
 Use it in the below curl:
 
 
-curl -k -u admin -H ""Content-Type: application/json"" -X  POST -d @cert.data https://192.168.50.40/policy/api/v1/trust-management/certificates/wlkavivip42.corp.internal?action=import_trusted_ca
+curl -k -u admin -H "Content-Type: application/json" -X POST -d @cert.data "https://192.168.50.40/policy/api/v1/trust-management/certificates/wlkavivip42.corp.internal?action=import_trusted_ca"
 
 
-
-curl -k -u admin:<password> -H ""Content-Type: application/json"" -X  POST -d @cert.data https://<nsx manager>/policy/api/v1/trust-management/certificates/<cert display name>?action=import_trusted_ca
-root@dnsserver:~/docker.image/vcf9/avi#"
+curl -k -u admin:<password> -H "Content-Type: application/json" -X  POST -d @cert.data https://<nsx manager>/policy/api/v1/trust-management/certificates/<cert display name>?action=import_trusted_ca
