@@ -80,3 +80,5 @@
 192.168.50.44 wlkavinode44.corp.internal
 192.168.50.45 wlkavinode45.corp.internal
 
+#workload edge
+192.168.50.46 edge-cluster-1.corp.internal
