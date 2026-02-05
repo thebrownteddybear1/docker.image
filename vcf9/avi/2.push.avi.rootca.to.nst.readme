@@ -1,0 +1,22 @@
+cert.data  upload.cert.to.nsx.readme.josephyap
+root@dnsserver:~/docker.image/avi# cat upload.cert.to.nsx.readme.josephyap
+https://techdocs.broadcom.com/us/en/vmware-security-load-balancing/avi-load-balancer/avi-load-balancer-vmware-cloud-foundation/9-0/deploying-avi-load-balancer-in-vcf/deploying-avi-load-balancer-to-the-Workload-Domain/creating-and-deploying-avi-portal-certificate.html
+
+Upload the certificate to the NSX manager using the following command:
+Click Export to export CA root certificate from the Avi Controller.
+copy the cert to a file called "cert.data"
+
+it is difficult to do by hand, so i used an ai, or you can do by hand the below, notice the \\n,the first \ escapse the 2nd \ so \n is line feed
+
+
+printf '{"pem_encoded": "-----BEGIN CERTIFICATE-----\\n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\\nzwIm4UE1UB2I\\n-----END CERTIFICATE-----\"}' > cert.data
+
+
+Use it in the below curl:
+
+
+curl -k -u admin -H "Content-Type: application/json" -X  POST -d @cert.data https://192.168.50.40/policy/api/v1/trust-management/certificates/wlkavivip42.corp.internal?action=import_trusted_ca
+
+
+
+curl -k -u admin:<password> -H "Content-Type: application/json" -X  POST -d @cert.data https://<nsx manager>/policy/api/v1/trust-management/certificates/<cert display name>?action=import_trusted_ca
