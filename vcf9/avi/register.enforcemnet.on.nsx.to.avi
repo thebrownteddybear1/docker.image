@@ -9,6 +9,8 @@ curl -k -u 'admin' --location --request PUT 'https://192.168.50.40/policy/api/v1
 "default_cert": false
 }'
 
+
+#######################################################
 ###you can only register once it seems
 ### so make it count
 root@dnsserver:~/docker.image/vcf9/avi# curl -k -u 'admin' --location --request PUT 'https://192.168.50.40/policy/api/v1/infra/alb-onboarding-workflow' \
@@ -32,7 +34,7 @@ Enter host password for user 'admin':
 root@dnsserver:~/docker.image/vcf9/avi#
 
 
-
+####################################################
 
 curl -k -u 'admin:NSX MANAGER PASSWORD' --location --request PUT 'https://<NSX MANAGER>/policy/api/v1/infra/alb-onboarding-workflow' \
 --header 'X-Allow-Overwrite: True' \
@@ -44,3 +46,7 @@ curl -k -u 'admin:NSX MANAGER PASSWORD' --location --request PUT 'https://<NSX M
 "infra_admin_password" : "<AVI PASSWORD>",
 "default_cert": false
 }'
+
+
+################### to check what is the current enforcement
+curl -k -u 'admin' -X GET "https://192.168.50.40/policy/api/v1/infra/sites/default/enforcement-points"
