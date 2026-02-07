@@ -87,8 +87,9 @@ RUN pwsh -Command 'Set-PSRepository -Name "PSGallery" -InstallationPolicy Truste
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \
     git config --global user.name "teddy"
 
-RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
-RUN git clone https://github.com/papivot/bash-wcpcli9-multi-az.git
+# Combine these and remove the previous separate RUN lines for these repos
+RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak && \
+    git clone https://github.com/papivot/bash-wcpcli9-multi-az.git /root/bash-wcpcli9-multi-az
 
 # Ensure these paths/files exist in your local build context
 COPY path/kubectl /usr/local/bin/
@@ -97,9 +98,6 @@ COPY VMware-ovftool-*.zip /root/
 COPY k8 /root/k8
 COPY ovftool /root/ovftool
 
-RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak && \
-    cd /root && \
-    git clone https://github.com/papivot/bash-wcpcli9-multi-az.git
 
 RUN echo "alias ls='ls --color=auto'\nalias ll='ls -alF'\nalias la='ls -A'\nalias l='ls -CF'\nunset LANG LC_ALL\nsource /usr/share/bash-completion/bash_completion\nsource <(kubectl completion bash)" >> /root/.bashrc
 
