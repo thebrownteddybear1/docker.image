@@ -98,7 +98,7 @@ COPY k8 /root/k8
 COPY ovftool /root/ovftool
 
 RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak && \
-    cd /root
+    cd /root && \
     git clone https://github.com/papivot/bash-wcpcli9-multi-az.git
 
 RUN echo "alias ls='ls --color=auto'\nalias ll='ls -alF'\nalias la='ls -A'\nalias l='ls -CF'\nunset LANG LC_ALL\nsource /usr/share/bash-completion/bash_completion\nsource <(kubectl completion bash)" >> /root/.bashrc
