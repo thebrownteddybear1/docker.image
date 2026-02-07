@@ -87,7 +87,8 @@ RUN pwsh -Command 'Set-PSRepository -Name "PSGallery" -InstallationPolicy Truste
 RUN git config --global user.email "thebrownteddybear@gmail.com" && \
     git config --global user.name "teddy"
 
-RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak
+RUN git clone https://github.com/thebrownteddybear1/tonjiak.git /root/tonjiak && \
+    git clone https://github.com/papivot/bash-wcpcli9-multi-az.git
 
 # Ensure these paths/files exist in your local build context
 COPY path/kubectl /usr/local/bin/
