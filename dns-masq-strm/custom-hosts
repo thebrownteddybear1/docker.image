@@ -88,3 +88,12 @@
 #workload edge
 192.168.50.46 edge1-cluster-1.corp.internal
 192.168.50.47 edge2-cluster-1.corp.internal
+
+
+#wwokload Supervisor
+192.168.50.48  wlksupervisorvip48.corp.internal
+192.168.50.49  wlksupervisor49.corp.internal
+192.168.50.50  wlksupervisor50.corp.internal
+192.168.50.51  wlksupervisor51.corp.internal
+192.168.50.52  wlksupervisor52.corp.internal
+
