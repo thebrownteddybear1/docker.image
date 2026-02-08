@@ -6,6 +6,11 @@ sudo apt update
 sudo apt -y install nfs-kernel-server
 chown nobody:nogroup /mnt/nfs1
 echo "/mnt/nfs1 *(rw,sync,no_root_squash,no_subtree_check)" >> /etc/exports
+echo "/mnt/nfs2 *(rw,sync,no_root_squash,no_subtree_check)" >> /etc/exports
+echo "/mnt/nfs3 *(rw,sync,no_root_squash,no_subtree_check)" >> /etc/exports
+
+exportfs -ra
+
 systemctl restart nfs-kernel-server
 systemctl disable ufw
 systemctl stop ufw
