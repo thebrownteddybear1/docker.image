@@ -1,105 +1,60 @@
-sudo apt update
-sudo apt install nfs-kernel-server -y
+#!/bin/bash
 
-# Update the thread count in the configuration file
-sed -i 's/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=128/' /etc/default/nfs-kernel-server
-sed -i 's/^THREADS=.*/THREADS=64/' /etc/default/nfs-kernel-server
+# 1. Install NFS Server
+apt update && apt install -y nfs-kernel-server
 
-# Restart the service
-systemctl restart nfs-kernel-server
-
-# Create the tuning file for VCF 9
-cat <<EOF > /etc/sysctl.d/99-vcf-jumbo-frames.conf
+# 2. Network & Kernel Tuning (Jumbo Frames & RAM Optimization)
+# Optimized for 70GB RAM and MTU 9000
+cat <<EOF > /etc/sysctl.d/99-nfs-performance.conf
+# Increase TCP max buffer size to 16MB
 net.core.rmem_max=16777216
 net.core.wmem_max=16777216
 net.ipv4.tcp_rmem=4096 87380 16777216
 net.ipv4.tcp_wmem=4096 65536 16777216
+
+# Increase packet queue limit
 net.core.netdev_max_backlog=5000
+
+# RPC slot tables: Support high concurrency
+sunrpc.tcp_slot_table_entries=128
+
+# Memory Management (Tuned for 70GB RAM)
+vm.dirty_ratio=15
+vm.dirty_background_ratio=3
+vm.swappiness=10
 EOF
 
-# Apply the settings immediately
-sysctl --system
+# Apply sysctl settings
+sysctl -p /etc/sysctl.d/99-nfs-performance.conf
 
-# Add the variable to the end of the config file
-echo 'RPCNFSDCOUNT=64' >> /etc/default/nfs-kernel-server
-
-# Restart to apply
-systemctl restart nfs-kernel-server
-
-
-# Create the override directory
+# 3. High-Concurrency Threading (128 Threads)
+# Override systemd to ignore default limits
 mkdir -p /etc/systemd/system/nfs-server.service.d/
-
-# Inject the 64-thread limit
 cat <<EOF > /etc/systemd/system/nfs-server.service.d/threads.conf
 [Service]
 ExecStart=
-ExecStart=/usr/sbin/rpc.nfsd 256
+ExecStart=/usr/sbin/rpc.nfsd 128
 EOF
 
-# Reload and restart
-systemctl daemon-reload
-systemctl restart nfs-server
-ps aux | grep nfsd | grep -v grep | wc -l
-
-
-tweaks fo the nfs server
-check also the mtu size of the nic
-cat <<EOF > /etc/sysctl.d/99-vcf-jumbo-frames.conf
-# VCF & Jumbo Frames Tuning
-net.core.rmem_max=16777216
-net.core.wmem_max=16777216
-net.ipv4.tcp_rmem=4096 87380 16777216
-net.ipv4.tcp_wmem=4096 65536 16777216
-net.core.netdev_max_backlog=5000
-
-# Write Caching for 100GB RAM
-vm.dirty_ratio=40
-vm.dirty_background_ratio=10
-EOF
-sysctl -p /etc/sysctl.d/99-vcf-jumbo-frames.conf
-
-watch -n 1 "grep -E 'Dirty|Writeback' /proc/meminfo"
-
-check for drops
-root@nfsserver:/etc/sysctl.d# ethtool -S ens34 | grep -E "drop|error|miss|fifo"
-       drv dropped tx total: 0
-       drv dropped tx total: 0
-       drv dropped tx total: 0
-       drv dropped tx total: 0
-       drv dropped tx total: 0
-       drv dropped tx total: 0
-       drv dropped tx total: 0
-       drv dropped tx total: 0
-       drv dropped rx total: 0
-          xdp drops: 0
-       drv dropped rx total: 0
-          xdp drops: 0
-       drv dropped rx total: 0
-          xdp drops: 0
-       drv dropped rx total: 0
-          xdp drops: 0
-       drv dropped rx total: 0
-          xdp drops: 0
-       drv dropped rx total: 0
-          xdp drops: 0
-       drv dropped rx total: 0
-          xdp drops: 0
-       drv dropped rx total: 0
-          xdp drops: 0
-
-
-enable the trim on ubuntuj 24.10 for the trim to work
-systemctl enable --now fstrim.timer
-systemctl list-timers fstrim.timer
-
-
-1 timers listed.
-Pass --all to see loaded but inactive timers, too.
-# Apply the change
+# 4. Filesystem Optimization (noatime)
+# Disables "last access" writes to save disk I/O
+cp /etc/fstab /etc/fstab.bak
 sed -i 's/defaults/defaults,noatime/g' /etc/fstab
 
-# Verify the output looks correct
-cat /etc/fstab
+# 5. SSD Maintenance
+# Enable periodic TRIM for SSD health
+systemctl enable --now fstrim.timer
 
-mount -a
+# 6. Apply all changes and restart services
+systemctl daemon-reload
+systemctl restart nfs-server
+mount -o remount -a
+
+# 7. Final Verification Output
+echo "------------------------------------------"
+echo "NFS Tweak Application Complete"
+echo "------------------------------------------"
+echo -n "MTU Status: " && ip link show | grep mtu | head -n 1
+echo -n "NFS Threads: " && ps aux | grep nfsd | grep -v grep | wc -l
+echo -n "Active Sysctl (Dirty Ratio): " && sysctl vm.dirty_ratio
+echo "------------------------------------------"
