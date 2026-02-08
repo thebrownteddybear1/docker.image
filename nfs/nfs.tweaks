@@ -1,22 +1,20 @@
+#!/bin/bash
 
 ################################################################################
-# NFS MASTER OPTIMIZATION v7.0 - THE GOLDEN CONFIG
+# NFS MASTER v9.0 - THE GOLDEN CONFIG + PERMANENT MONITOR
 # Hardware: 70GB RAM | MTU 9000 | 128 Threads | 3 XFS Disks
 ################################################################################
 
-# 1. CORE INSTALLATION
-echo "--- Installing Tools ---"
-apt update && apt install -y nfs-kernel-server xfsprogs attr
+echo "--- 1/7: Installing Tools ---"
+apt update && apt install -y nfs-kernel-server xfsprogs attr sysstat
 
-# 2. NETWORK: JUMBO FRAMES (MTU 9000)
-echo "--- Configuring Netplan MTU 9000 ---"
-NETPLAN_FILE="/etc/netplan/50-cloud-init.yaml"
+echo "--- 2/7: Configuring Netplan (MTU 9000) ---"
+NETPLAN_FILE=$(ls /etc/netplan/*.yaml | head -n 1)
 sed -i '/mtu:/d' "$NETPLAN_FILE"
 sed -i '/^  ethernets:/!b;n;a \      mtu: 9000' "$NETPLAN_FILE"
 netplan apply
 
-# 3. KERNEL: 70GB RAM & TCP TUNING
-echo "--- Applying Sysctl Optimizations ---"
+echo "--- 3/7: Applying Sysctl Performance Tuning ---"
 cat <<EOF > /etc/sysctl.d/99-nfs-performance.conf
 net.core.rmem_max=16777216
 net.core.wmem_max=16777216
@@ -30,119 +28,64 @@ vm.swappiness=10
 EOF
 sysctl -p /etc/sysctl.d/99-nfs-performance.conf
 
-# 4. DISK: REFORMAT & AUTO-UUID MAPPING
-echo "--- Formatting & Mounting Disks ---"
+echo "--- 4/7: Formatting Disks & Updating FSTAB ---"
 umount -l /mnt/nfs1 /mnt/nfs2 /mnt/nfs3 2>/dev/null
-
 for disk in a b c; do
     mkfs.xfs -f -b size=4096 -d agcount=32 /dev/sd$disk
     NEW_ID=$(blkid -s UUID -o value /dev/sd$disk)
-    # Create mount point
-    mkdir -p /mnt/nfs$(( $(printf '%d' "'$disk") - 96 ))
-    # Clean old fstab and add new entry
-    sed -i "/\/mnt\/nfs$(( $(printf '%d' "'$disk") - 96 ))/d" /etc/fstab
-    echo "UUID=$NEW_ID /mnt/nfs$(( $(printf '%d' "'$disk") - 96 )) xfs defaults,noatime 0 1" >> /etc/fstab
+    NUM=$(( $(printf '%d' "'$disk") - 96 ))
+    mkdir -p /mnt/nfs$NUM
+    sed -i "/\/mnt\/nfs$NUM/d" /etc/fstab
+    echo "UUID=$NEW_ID /mnt/nfs$NUM xfs defaults,noatime 0 1" >> /etc/fstab
 done
-
 systemctl daemon-reload
 mount -a
 
-# 5. XFS: 1MB EXTENT HINTS (Inheritance)
-echo "################################################################"
---- Installing Tools ---
-Hit:1 http://sg.archive.ubuntu.com/ubuntu noble InRelease
-Hit:2 http://sg.archive.ubuntu.com/ubuntu noble-updates InRelease
-Hit:3 http://sg.archive.ubuntu.com/ubuntu noble-backports InRelease
-Hit:4 http://security.ubuntu.com/ubuntu noble-security InRelease
-Reading package lists... Done
-Building dependency tree... Done
-Reading state information... Done
-25 packages can be upgraded. Run 'apt list --upgradable' to see them.
-Reading package lists... Done
-Building dependency tree... Done
-Reading state information... Done
-nfs-kernel-server is already the newest version (1:2.6.4-3ubuntu5.1).
-xfsprogs is already the newest version (6.6.0-1ubuntu2.1).
-The following NEW packages will be installed:
-  attr
-0 upgraded, 1 newly installed, 0 to remove and 25 not upgraded.
-Need to get 22.8 kB of archives.
-After this operation, 139 kB of additional disk space will be used.
-Get:1 http://sg.archive.ubuntu.com/ubuntu noble-updates/main amd64 attr amd64 1:2.5.2-1build1.1 [22.8 kB]
-Fetched 22.8 kB in 0s (555 kB/s)
-Selecting previously unselected package attr.
-(Reading database ... 87501 files and directories currently installed.)
-Preparing to unpack .../attr_1%3a2.5.2-1build1.1_amd64.deb ...
-Unpacking attr (1:2.5.2-1build1.1) ...
-Setting up attr (1:2.5.2-1build1.1) ...
-Processing triggers for man-db (2.12.0-4build2) ...
-Scanning processes...
-Scanning linux images...
+echo "--- 5/7: Setting 1MB Extent Hints & NFS Threads ---"
+for mnt in /mnt/nfs1 /mnt/nfs2 /mnt/nfs3; do
+    xfs_io -c "extsize 1m" $mnt
+    chattr +P $mnt 2>/dev/null
+done
 
-Running kernel seems to be up-to-date.
+mkdir -p /etc/systemd/system/nfs-server.service.d/
+echo -e "[Service]\nExecStart=\nExecStart=/usr/sbin/rpc.nfsd 128" > /etc/systemd/system/nfs-server.service.d/threads.conf
 
-No services need to be restarted.
+cat <<EOF > /etc/exports
+/mnt/nfs1 *(rw,sync,no_subtree_check,no_root_squash)
+/mnt/nfs2 *(rw,sync,no_subtree_check,no_root_squash)
+/mnt/nfs3 *(rw,sync,no_subtree_check,no_root_squash)
+EOF
 
-No containers need to be restarted.
+systemctl daemon-reload
+exportfs -ra
+systemctl restart nfs-server
 
-No user sessions are running outdated binaries.
+echo "--- 6/7: Creating Permanent Monitor at /root/nfs-monitor.sh ---"
+cat << 'MONITOR' > /root/nfs-monitor.sh
+#!/bin/bash
+while true; do
+    clear
+    echo "================================================================"
+    echo "         NFS MASTER MONITOR (3s REFRESH)                       "
+    echo "================================================================"
+    TC=$(ps aux | grep [n]fsd | wc -l)
+    echo -n "THREADS:     "; [[ "$TC" -ge 128 ]] && echo -e "\e[32m$TC (Healthy)\e[0m" || echo -e "\e[31m$TC (Low)\e[0m"
+    echo -n "SYSTEM LOAD: "; cat /proc/loadavg | cut -d' ' -f1-3
+    echo -n "DIRTY CACHE: "; grep "Dirty:" /proc/meminfo | awk '{print $2 / 1024 " MB"}'
+    dd if=/dev/zero of=/mnt/nfs1/.ext_test bs=1M count=1 conv=fsync status=none 2>/dev/null
+    EX=$(xfs_bmap /mnt/nfs1/.ext_test | grep -cE '^[[:space:]]+[0-9]+:')
+    echo -n "1MB EXTENT:  "; [[ "$EX" -eq 1 ]] && echo -e "\e[32mACTIVE\e[0m" || echo -e "\e[31mINACTIVE ($EX pieces)\e[0m"
+    rm -f /mnt/nfs1/.ext_test
+    echo "DISK WRITES: "; iostat -m -y 1 1 | grep -E "sd[a-c]" | awk '{print "  - " $1 ": " $4 " MB/s"}'
+    echo -n "TCP MSS:     "; MSS=$(ss -itn sport = :2049 | grep -oP 'mss:\K[0-9]+' | head -n 1)
+    if [[ -z "$MSS" ]]; then echo "No Clients"; elif [ "$MSS" -ge 8000 ]; then echo -e "\e[32m$MSS (Jumbo)\e[0m"; else echo -e "\e[33m$MSS (Small MTU)\e[0m"; fi
+    echo "================================================================"
+    echo "Run manually with: /root/nfs-monitor.sh | Press [Ctrl+C] to exit."
+    sleep 3
+done
+MONITOR
+chmod +x /root/nfs-monitor.sh
 
-No VM guests are running outdated hypervisor (qemu) binaries on this host.
---- Configuring Netplan MTU 9000 ---
---- Applying Sysctl Optimizations ---
-net.core.rmem_max = 16777216
-net.core.wmem_max = 16777216
-net.ipv4.tcp_rmem = 4096 87380 16777216
-net.ipv4.tcp_wmem = 4096 65536 16777216
-net.core.netdev_max_backlog = 5000
-sunrpc.tcp_slot_table_entries = 128
-vm.dirty_ratio = 15
-vm.dirty_background_ratio = 3
-vm.swappiness = 10
---- Formatting & Mounting Disks ---
-meta-data=/dev/sda               isize=512    agcount=32, agsize=15099495 blks
-         =                       sectsz=512   attr=2, projid32bit=1
-         =                       crc=1        finobt=1, sparse=1, rmapbt=1
-         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
-data     =                       bsize=4096   blocks=483183820, imaxpct=5
-         =                       sunit=0      swidth=0 blks
-naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
-log      =internal log           bsize=4096   blocks=235929, version=2
-         =                       sectsz=512   sunit=0 blks, lazy-count=1
-realtime =none                   extsz=4096   blocks=0, rtextents=0
-Discarding blocks...Done.
-meta-data=/dev/sdb               isize=512    agcount=32, agsize=15099495 blks
-         =                       sectsz=512   attr=2, projid32bit=1
-         =                       crc=1        finobt=1, sparse=1, rmapbt=1
-         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
-data     =                       bsize=4096   blocks=483183820, imaxpct=5
-         =                       sunit=0      swidth=0 blks
-naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
-log      =internal log           bsize=4096   blocks=235929, version=2
-         =                       sectsz=512   sunit=0 blks, lazy-count=1
-realtime =none                   extsz=4096   blocks=0, rtextents=0
-Discarding blocks...Done.
-meta-data=/dev/sdc               isize=512    agcount=32, agsize=15099495 blks
-         =                       sectsz=512   attr=2, projid32bit=1
-         =                       crc=1        finobt=1, sparse=1, rmapbt=1
-         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
-data     =                       bsize=4096   blocks=483183820, imaxpct=5
-         =                       sunit=0      swidth=0 blks
-naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
-log      =internal log           bsize=4096   blocks=235929, version=2
-         =                       sectsz=512   sunit=0 blks, lazy-count=1
-realtime =none                   extsz=4096   blocks=0, rtextents=0
-Discarding blocks...Done.
---- Applying 1MB Extent Hints ---
---- Configuring 128 NFS Threads ---
---- Setting Exports ---
---- Final Service Restart ---
-################################################################
-                NFS MASTER REBUILT & REBOOT PROOF
-################################################################
-MTU:     2: ens34: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000 qdisc mq state UP mode DEFAULT group default qlen 1000
-THREADS: 129
-MOUNTED: 3 Disks
-EXTSIZE: extsz=4096
-################################################################
-root@nfsserver:~#
+echo "--- 7/7: Success! Launching Monitor... ---"
+sleep 2
+/root/nfs-monitor.sh
