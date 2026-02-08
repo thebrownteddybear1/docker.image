@@ -1,26 +1,27 @@
 #!/bin/bash
 
 ################################################################################
-# NFS MASTER OPTIMIZATION SCRIPT
-# Configured for: 70GB RAM, MTU 9000, 128 Threads, 3 XFS Disks (nfs1, nfs2, nfs3)
+# NFS MASTER OPTIMIZATION SCRIPT v3.0
+# Configured for: 70GB RAM | MTU 9000 | 128 Threads | 3 XFS Disks
 ################################################################################
 
 # 1. INSTALL SERVICE
-echo "Installing NFS Kernel Server..."
+echo "Step 1: Installing NFS Kernel Server..."
 apt update && apt install -y nfs-kernel-server
 
 # 2. UNIVERSAL NETPLAN MTU 9000 INJECTION
-# Finds the interface under 'ethernets:' and injects MTU without needing the name
+# Targets the line under 'ethernets:' regardless of name (ens34, eth0, etc.)
 NETPLAN_FILE="/etc/netplan/50-cloud-init.yaml"
 if [ -f "$NETPLAN_FILE" ]; then
-    echo "Injecting MTU 9000 into Netplan..."
-    sed -i '/^  ethernets:/!b;n;a \      mtu: 9000' "$NETPLAN_FILE"
-    sed -i '/mtu: 9000/{n;/mtu: 9000/d;}' "$NETPLAN_FILE"
-    netplan apply
+    echo "Step 2: Injecting MTU 9000 into Netplan..."
+    if ! grep -q "mtu: 9000" "$NETPLAN_FILE"; then
+        sed -i '/^  ethernets:/!b;n;a \      mtu: 9000' "$NETPLAN_FILE"
+        netplan apply
+    fi
 fi
 
 # 3. KERNEL & NETWORK TUNING (SYSCTL)
-echo "Applying Kernel and RAM optimizations..."
+echo "Step 3: Applying Kernel and RAM optimizations..."
 cat <<EOF > /etc/sysctl.d/99-nfs-performance.conf
 # 16MB TCP Buffers for Jumbo Frames
 net.core.rmem_max=16777216
@@ -40,7 +41,7 @@ EOF
 sysctl -p /etc/sysctl.d/99-nfs-performance.conf
 
 # 4. HIGH-CONCURRENCY THREADING (128 WORKERS)
-echo "Configuring 128 NFS worker threads..."
+echo "Step 4: Configuring 128 NFS worker threads..."
 mkdir -p /etc/systemd/system/nfs-server.service.d/
 cat <<EOF > /etc/systemd/system/nfs-server.service.d/threads.conf
 [Service]
@@ -48,13 +49,18 @@ ExecStart=
 ExecStart=/usr/sbin/rpc.nfsd 128
 EOF
 
-# 5. FILESYSTEM & SSD MAINTENANCE
-echo "Enabling noatime and SSD TRIM..."
-[ -f /etc/fstab ] && sed -i 's/defaults/defaults,noatime/g' /etc/fstab
+# 5. FILESYSTEM & FSTAB CLEANUP (IDEMPOTENT)
+echo "Step 5: Cleaning up fstab and enabling noatime..."
+if [ -f /etc/fstab ]; then
+    # Add noatime if missing
+    sed -i '/noatime/!s/defaults/defaults,noatime/g' /etc/fstab
+    # Deduplicate repeated noatime entries from previous runs
+    sed -i 's/\(,noatime\)\+/,noatime/g' /etc/fstab
+fi
 systemctl enable --now fstrim.timer
 
 # 6. GLOBAL EXPORTS SETUP
-echo "Setting up exports for /mnt/nfs1, nfs2, nfs3..."
+echo "Step 6: Configuring Global Exports..."
 mkdir -p /mnt/nfs1 /mnt/nfs2 /mnt/nfs3
 chmod 777 /mnt/nfs1 /mnt/nfs2 /mnt/nfs3
 cat <<EOF > /etc/exports
@@ -63,21 +69,32 @@ cat <<EOF > /etc/exports
 /mnt/nfs3 *(rw,sync,no_subtree_check,no_root_squash)
 EOF
 
-# 7. RESTART AND APPLY
-echo "Restarting services..."
+# 7. APPLY AND RESTART
+echo "Step 7: Applying all changes..."
 systemctl daemon-reload
 exportfs -ra
 systemctl restart nfs-server
 mount -o remount -a
 
-# 8. FINAL VERIFICATION
+# 8. COMPREHENSIVE SYSTEM AUDIT
+clear
+echo "================================================================"
+echo "                NFS MASTER SYSTEM AUDIT                         "
+echo "================================================================"
+echo "--- [1] BLOCK DEVICES (blkid) ---"
+blkid | grep /dev/sd
 echo ""
-echo "------------------------------------------------"
-echo "        NFS MASTER OPTIMIZATION COMPLETE        "
-echo "------------------------------------------------"
-echo "NETWORK MTU:    $(ip link show | grep mtu | grep -v 'lo' | head -n 1)"
-echo "KERNEL BUFFER:  $(sysctl net.core.rmem_max)"
-echo "RPC SLOTS:      $(cat /proc/sys/sunrpc/tcp_slot_table_entries)"
-echo "THREAD COUNT:   $(ps aux | grep nfsd | grep -v grep | wc -l)"
-echo "DISK OPTIONS:   $(grep noatime /proc/mounts | grep /mnt)"
-echo "------------------------------------------------"
+echo "--- [2] FILESYSTEM TABLE (fstab) ---"
+cat /etc/fstab
+echo ""
+echo "--- [3] NFS EXPORTS (exports) ---"
+cat /etc/exports
+echo ""
+echo "--- [4] NETWORK CONFIG (netplan) ---"
+cat "$NETPLAN_FILE"
+echo ""
+echo "--- [5] PERFORMANCE VERIFICATION ---"
+echo "Active MTU:     $(ip link show | grep mtu | grep -v 'lo' | head -n 1)"
+echo "TCP Window:    $(sysctl net.core.rmem_max)"
+echo "Threads:       $(ps aux | grep nfsd | grep -v grep | wc -l)"
+echo "================================================================"
