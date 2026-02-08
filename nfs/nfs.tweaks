@@ -1,5 +1,5 @@
 # Update the thread count in the configuration file
-sed -i 's/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=64/' /etc/default/nfs-kernel-server
+sed -i 's/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=256/' /etc/default/nfs-kernel-server
 sed -i 's/^THREADS=.*/THREADS=64/' /etc/default/nfs-kernel-server
 
 # Restart the service
