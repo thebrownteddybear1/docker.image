@@ -1,5 +1,8 @@
+sudo apt update
+sudo apt install nfs-kernel-server -y
+
 # Update the thread count in the configuration file
-sed -i 's/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=256/' /etc/default/nfs-kernel-server
+sed -i 's/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=128/' /etc/default/nfs-kernel-server
 sed -i 's/^THREADS=.*/THREADS=64/' /etc/default/nfs-kernel-server
 
 # Restart the service
@@ -31,19 +34,13 @@ mkdir -p /etc/systemd/system/nfs-server.service.d/
 cat <<EOF > /etc/systemd/system/nfs-server.service.d/threads.conf
 [Service]
 ExecStart=
-ExecStart=/usr/sbin/rpc.nfsd 64
+ExecStart=/usr/sbin/rpc.nfsd 256
 EOF
 
 # Reload and restart
 systemctl daemon-reload
 systemctl restart nfs-server
 ps aux | grep nfsd | grep -v grep | wc -l
-
-for i in {11..16}; do
-  echo "Setting MTU 9000 on ESXi 192.168.50.$i..."
-  sshpass -p 'VMware1!VMware1!' ssh -o StrictHostKeyChecking=no root@192.168.50.$i \
-  "esxcfg-vswitch -m 9000 vSwitch0 && esxcli network ip interface set -i vmk0 -m 9000"
-done
 
 
 tweaks fo the nfs server
@@ -90,43 +87,19 @@ root@nfsserver:/etc/sysctl.d# ethtool -S ens34 | grep -E "drop|error|miss|fifo"
           xdp drops: 0
        drv dropped rx total: 0
           xdp drops: 0
-root@nfsserver:/etc/sysctl.d#
 
-increase threads to 254 as 16 cpu immediately
-root@nfsserver:~# # This searches for the RPCNFSDCOUNT line and replaces the number with 256
-sudo sed -i 's/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=256/' /etc/default/nfs-kernel-server
-
-# Restart the NFS server to hire the new workers
-sudo systemctl restart nfs-kernel-server
-root@nfsserver:~# cat /proc/net/rpc/nfsd | grep th
-th 64 0 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000
-root@nfsserver:~# grep "RPCNFSDCOUNT" /etc/default/nfs-kernel-server
-RPCNFSDCOUNT=256
-
-
-just leave out the discard option in the mounts in fstab, rely on the fstrim
 
 enable the trim on ubuntuj 24.10 for the trim to work
-root@nfsserver:~# systemctl enable --now fstrim.timer
-root@nfsserver:~# systemctl list-timers fstrim.timer
-NEXT                          LEFT LAST                        PASSED UNIT         ACTIVATES
-Mon 2026-02-09 00:44:56 UTC 4 days Tue 2026-02-03 02:27:59 UTC      - fstrim.timer fstrim.service
+systemctl enable --now fstrim.timer
+systemctl list-timers fstrim.timer
+
 
 1 timers listed.
 Pass --all to see loaded but inactive timers, too.
+# Apply the change
+sed -i 's/defaults/defaults,noatime/g' /etc/fstab
 
+# Verify the output looks correct
+cat /etc/fstab
 
-#proxmox
-2. Make it Permanent
-
-To ensure this survives a reboot, you must edit your network interfaces file.
-
-    Open the config: vi /etc/network/interfaces
-
-    Find the section for iface nic0.
-
-    Add the MTU line so it looks like this:
-    Plaintext
-
-    iface nic0 inet manual
-        mtu 9000
+mount -a
