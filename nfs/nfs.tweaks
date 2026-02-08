@@ -3,32 +3,37 @@
 # 1. Install NFS Server
 apt update && apt install -y nfs-kernel-server
 
-# 2. Network & Kernel Tuning (Jumbo Frames & RAM Optimization)
-# Optimized for 70GB RAM and MTU 9000
+# 2. Universal Netplan MTU Injection
+# Targets the interface under 'ethernets:' regardless of name (ens34, eth0, etc.)
+NETPLAN_FILE="/etc/netplan/50-cloud-init.yaml"
+if [ -f "$NETPLAN_FILE" ]; then
+    # Inject MTU 9000 after the interface name line
+    sed -i '/^  ethernets:/!b;n;a \      mtu: 9000' "$NETPLAN_FILE"
+    # Deduplicate: remove identical consecutive MTU lines if script is re-run
+    sed -i '/mtu: 9000/{n;/mtu: 9000/d;}' "$NETPLAN_FILE"
+    netplan apply
+fi
+
+# 3. Kernel & Network Tuning (Buffers & 70GB RAM Optimization)
 cat <<EOF > /etc/sysctl.d/99-nfs-performance.conf
-# Increase TCP max buffer size to 16MB
+# 16MB TCP Buffers for Jumbo Frames
 net.core.rmem_max=16777216
 net.core.wmem_max=16777216
 net.ipv4.tcp_rmem=4096 87380 16777216
 net.ipv4.tcp_wmem=4096 65536 16777216
-
-# Increase packet queue limit
 net.core.netdev_max_backlog=5000
 
-# RPC slot tables: Support high concurrency
+# RPC slots for high concurrency
 sunrpc.tcp_slot_table_entries=128
 
-# Memory Management (Tuned for 70GB RAM)
+# Memory Management for 70GB RAM (Prevents I/O stalling)
 vm.dirty_ratio=15
 vm.dirty_background_ratio=3
 vm.swappiness=10
 EOF
-
-# Apply sysctl settings
 sysctl -p /etc/sysctl.d/99-nfs-performance.conf
 
-# 3. High-Concurrency Threading (128 Threads)
-# Override systemd to ignore default limits
+# 4. High-Concurrency Threading (128 Workers)
 mkdir -p /etc/systemd/system/nfs-server.service.d/
 cat <<EOF > /etc/systemd/system/nfs-server.service.d/threads.conf
 [Service]
@@ -36,25 +41,33 @@ ExecStart=
 ExecStart=/usr/sbin/rpc.nfsd 128
 EOF
 
-# 4. Filesystem Optimization (noatime)
-# Disables "last access" writes to save disk I/O
-cp /etc/fstab /etc/fstab.bak
-sed -i 's/defaults/defaults,noatime/g' /etc/fstab
-
-# 5. SSD Maintenance
-# Enable periodic TRIM for SSD health
+# 5. Filesystem & SSD Maintenance
+# Apply noatime to all fstab entries to reduce metadata writes
+[ -f /etc/fstab ] && sed -i 's/defaults/defaults,noatime/g' /etc/fstab
 systemctl enable --now fstrim.timer
 
-# 6. Apply all changes and restart services
+# 6. Storage Prep & Global Exports
+# Create paths and ensure they are writable
+mkdir -p /mnt/nfs1 /mnt/nfs2 /mnt/nfs3
+chmod 777 /mnt/nfs1 /mnt/nfs2 /mnt/nfs3
+
+cat <<EOF > /etc/exports
+/mnt/nfs1 *(rw,sync,no_subtree_check,no_root_squash)
+/mnt/nfs2 *(rw,sync,no_subtree_check,no_root_squash)
+/mnt/nfs3 *(rw,sync,no_subtree_check,no_root_squash)
+EOF
+
+# 7. Apply All Changes
 systemctl daemon-reload
+exportfs -ra
 systemctl restart nfs-server
 mount -o remount -a
 
-# 7. Final Verification Output
-echo "------------------------------------------"
-echo "NFS Tweak Application Complete"
-echo "------------------------------------------"
-echo -n "MTU Status: " && ip link show | grep mtu | head -n 1
-echo -n "NFS Threads: " && ps aux | grep nfsd | grep -v grep | wc -l
-echo -n "Active Sysctl (Dirty Ratio): " && sysctl vm.dirty_ratio
-echo "------------------------------------------"
+# 8. Final Verification
+echo "------------------------------------------------"
+echo "        NFS MASTER OPTIMIZATION COMPLETE        "
+echo "------------------------------------------------"
+echo -n "Active Interface MTU: " && ip link show | grep mtu | grep -v "lo" | head -n 1
+echo -n "NFS Thread Count:     " && ps aux | grep nfsd | grep -v grep | wc -l
+echo -n "Export Status:        " && exportfs | grep /mnt
+echo "------------------------------------------------"
