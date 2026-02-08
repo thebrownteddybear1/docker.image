@@ -182,3 +182,21 @@ echo "4. CURRENT TRAFFIC (packet sizes):"
 timeout 2 sudo tcpdump -i ens35 -c 5 'port 2049' 2>/dev/null | grep length
 EOF
 chmod +x /root/mtu_mystery.sh
+
+
+## you added a disk to nfs vm
+
+echo "- - -" | sudo tee /sys/class/scsi_host/host*/scan
+lsblk
+sudo mkfs.ext4 /dev/sdb
+sudo mount /dev/sdb /mnt/data
+To make it persistent across reboots, add an entry to /etc/fstab. First get the UUID:
+
+blkid /dev/sdb
+
+Then add a line in /etc/fstab:
+UUID=<your-disk-uuid>  /mnt/data  ext4  defaults  0  2
+Add the directory to /etc/exports:
+/mnt/data  *(rw,sync,no_subtree_check)
+sudo exportfs -ra
+

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ################################################################################
-# NFS MASTER OPTIMIZATION SCRIPT v3.0
+# NFS MASTER OPTIMIZATION SCRIPT v3.1
 # Configured for: 70GB RAM | MTU 9000 | 128 Threads | 3 XFS Disks
 ################################################################################
 
@@ -10,7 +10,6 @@ echo "Step 1: Installing NFS Kernel Server..."
 apt update && apt install -y nfs-kernel-server
 
 # 2. UNIVERSAL NETPLAN MTU 9000 INJECTION
-# Targets the line under 'ethernets:' regardless of name (ens34, eth0, etc.)
 NETPLAN_FILE="/etc/netplan/50-cloud-init.yaml"
 if [ -f "$NETPLAN_FILE" ]; then
     echo "Step 2: Injecting MTU 9000 into Netplan..."
@@ -23,17 +22,12 @@ fi
 # 3. KERNEL & NETWORK TUNING (SYSCTL)
 echo "Step 3: Applying Kernel and RAM optimizations..."
 cat <<EOF > /etc/sysctl.d/99-nfs-performance.conf
-# 16MB TCP Buffers for Jumbo Frames
 net.core.rmem_max=16777216
 net.core.wmem_max=16777216
 net.ipv4.tcp_rmem=4096 87380 16777216
 net.ipv4.tcp_wmem=4096 65536 16777216
 net.core.netdev_max_backlog=5000
-
-# RPC slots for high concurrency
 sunrpc.tcp_slot_table_entries=128
-
-# Memory Management for 70GB RAM (Prevents I/O stalling)
 vm.dirty_ratio=15
 vm.dirty_background_ratio=3
 vm.swappiness=10
@@ -52,9 +46,7 @@ EOF
 # 5. FILESYSTEM & FSTAB CLEANUP (IDEMPOTENT)
 echo "Step 5: Cleaning up fstab and enabling noatime..."
 if [ -f /etc/fstab ]; then
-    # Add noatime if missing
     sed -i '/noatime/!s/defaults/defaults,noatime/g' /etc/fstab
-    # Deduplicate repeated noatime entries from previous runs
     sed -i 's/\(,noatime\)\+/,noatime/g' /etc/fstab
 fi
 systemctl enable --now fstrim.timer
@@ -76,11 +68,11 @@ exportfs -ra
 systemctl restart nfs-server
 mount -o remount -a
 
-# 8. COMPREHENSIVE SYSTEM AUDIT
-clear
-echo "================================================================"
+# 8. COMPREHENSIVE SYSTEM AUDIT (Scrollback Friendly)
+echo -e "\n\n"
+echo "################################################################"
 echo "                NFS MASTER SYSTEM AUDIT                         "
-echo "================================================================"
+echo "################################################################"
 echo "--- [1] BLOCK DEVICES (blkid) ---"
 blkid | grep /dev/sd
 echo ""
@@ -97,4 +89,4 @@ echo "--- [5] PERFORMANCE VERIFICATION ---"
 echo "Active MTU:     $(ip link show | grep mtu | grep -v 'lo' | head -n 1)"
 echo "TCP Window:    $(sysctl net.core.rmem_max)"
 echo "Threads:       $(ps aux | grep nfsd | grep -v grep | wc -l)"
-echo "================================================================"
+echo "################################################################"
