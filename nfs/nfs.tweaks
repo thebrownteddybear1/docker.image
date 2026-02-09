@@ -1,91 +1,119 @@
-#!/bin/bash
+root@nfsserver:~# #!/bin/bash
 ################################################################################
-# NFS MASTER v9.9 - 8-CPU / 100GB RAM SCALING - OS-LOCK SAFETY
+# NFS MASTER v11.8 - 512 THREADS - 100GB RAM - NOBLE PRODUCTION
 ################################################################################
 
-echo "--- 1/7: Initializing ---"
-apt update && apt install -y nfs-kernel-server xfsprogs attr sysstat bc
+# 1. Protection & Identification
+OS_DISK=$(lsblk -no PKNAME $(findmnt -n -o SOURCE /) | sed 's/[0-9]*//g' | head -n 1)
+echo "--- Identified OS Disk: /dev/$OS_DISK (Protecting) ---"
 
-# --- CRITICAL SAFETY: IDENTIFY OS DISK ---
-OS_DISK=$(lsblk -no PKNAME $(findmnt -n -o SOURCE /) | sed 's/[0-9]*//g')
-echo "[SYSTEM] OS is on: /dev/$OS_DISK (LOCKED). 8 CPUs & 100GB RAM Detected."
+# 2. Package Installation
+apt update && apt install -y nfs-kernel-server xfsprogs psmisc
+modprobe nfsd
 
-echo "--- 2/7: Network (MTU 9000) ---"
-NETPLAN_FILE=$(ls /etc/netplan/*.yaml | head -n 1)
-sed -i '/mtu:/d' "$NETPLAN_FILE"
-sed -i '/^      ethernets:/!b;n;a \      mtu: 9000' "$NETPLAN_FILE"
-netplan apply
-
-echo "--- 3/7: Sysctl (100GB RAM Optimization) ---"
-cat <<EOF > /etc/sysctl.d/99-nfs-performance.conf
-net.core.rmem_max=16777216
-net.core.wmem_max=16777216
-net.ipv4.tcp_rmem=4096 87380 16777216
-net.ipv4.tcp_wmem=4096 65536 16777216
-net.core.netdev_max_backlog=10000
-sunrpc.tcp_slot_table_entries=128
-vm.dirty_ratio=15
-vm.dirty_background_ratio=3
-vm.swappiness=5
-EOF
-sysctl -p /etc/sysctl.d/99-nfs-performance.conf
-
-echo "--- 4/7: Formatting Data Disks ---"
-systemctl stop nfs-server 2>/dev/null
-exportfs -au
-umount -f /mnt/nfs1 /mnt/nfs2 /mnt/nfs3 2>/dev/null
-
-DATA_DISKS=$(lsblk -dnbo NAME,SIZE | awk -v os="/dev/$OS_DISK" '$2 > 1900000000000 && "/dev/"$1 != os {print $1}')
-
-NUM=1
-for dev in $DATA_DISKS; do
-    echo "Formatting Data Drive: /dev/$dev"
-    wipefs -a /dev/$dev
-    mkfs.xfs -f -b size=4096 -d agcount=32 /dev/$dev
-    NEW_ID=$(blkid -s UUID -o value /dev/$dev)
-    mkdir -p /mnt/nfs$NUM
-    sed -i "/\/mnt\/nfs$NUM/d" /etc/fstab
-    echo "UUID=$NEW_ID /mnt/nfs$NUM xfs defaults,noatime 0 2" >> /etc/fstab
-    ((NUM++))
-done
-
-sed -i "s/on \/dev\/sd[a-z][0-9]/on \/dev\/${OS_DISK}2/g" /etc/fstab
-systemctl daemon-reload
-mount -a
-
-echo "--- 5/7: Scaling to 512 Threads ---"
+# 3. Thread Lock (512)
 mkdir -p /etc/systemd/system/nfs-server.service.d/
 cat <<EOF > /etc/systemd/system/nfs-server.service.d/threads.conf
 [Service]
 ExecStart=
 ExecStart=/usr/sbin/rpc.nfsd 512
 EOF
+sed -i "s/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=512/" /etc/default/nfs-kernel-server
+sed -i "s/^[# ]*threads=.*/threads=512/" /etc/nfs.conf
 
-cat <<EOF > /etc/exports
-/mnt/nfs1 *(rw,sync,no_subtree_check,no_root_squash)
-/mnt/nfs2 *(rw,sync,no_subtree_check,no_root_squash)
-/mnt/nfs3 *(rw,sync,no_subtree_check,no_root_squash)
-EOF
+# 4. 100GB RAM Optimization
+cat <<EOF > /etc/sysctl.d/99-nfs-performance.conf
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.tcp_rmem=4096 87380 16777216
+net.ipv4.tcp_wmem=4096 65536 16777216
+vm.dirty_ratio=40
+echo "================================================================"/etc/exports != os {print $1}')
+--- Identified OS Disk: /dev/sda (Protecting) ---
+Hit:1 http://sg.archive.ubuntu.com/ubuntu noble InRelease
+Hit:2 http://sg.archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:3 http://sg.archive.ubuntu.com/ubuntu noble-backports InRelease
+Hit:4 http://security.ubuntu.com/ubuntu noble-security InRelease
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+19 packages can be upgraded. Run 'apt list --upgradable' to see them.
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+nfs-kernel-server is already the newest version (1:2.6.4-3ubuntu5.1).
+xfsprogs is already the newest version (6.6.0-1ubuntu2.1).
+The following NEW packages will be installed:
+  psmisc
+0 upgraded, 1 newly installed, 0 to remove and 19 not upgraded.
+Need to get 179 kB of archives.
+After this operation, 610 kB of additional disk space will be used.
+Get:1 http://sg.archive.ubuntu.com/ubuntu noble/main amd64 psmisc amd64 23.7-1build1 [179 kB]
+Fetched 179 kB in 0s (725 kB/s)
+debconf: delaying package configuration, since apt-utils is not installed
+Selecting previously unselected package psmisc.
+(Reading database ... 75919 files and directories currently installed.)
+Preparing to unpack .../psmisc_23.7-1build1_amd64.deb ...
+Unpacking psmisc (23.7-1build1) ...
+Setting up psmisc (23.7-1build1) ...
+Scanning processes...
+Scanning linux images...
 
-systemctl daemon-reload
-exportfs -ra
-systemctl restart nfs-server
+Running kernel seems to be up-to-date.
 
-echo "--- 6/7: Updating Monitor ---"
-cat << 'MONITOR' > /root/nfs-monitor.sh
-#!/bin/bash
-while true; do
-    echo "--- $(date '+%H:%M:%S') ---"
-    CONFIGURED=$(cat /proc/fs/nfsd/threads 2>/dev/null || echo 0)
-    ACTIVE=$(ps -ef | grep "[n]fsd" | wc -l)
-    echo "THREADS: $CONFIGURED Max | $ACTIVE Active"
-    echo -n "CACHE:  "; grep "Dirty:" /proc/meminfo | awk '{print $2 / 1024 " MB Dirty (Target < 15000MB)"}'
-    echo "----------------------------------------------------------------"
-    sleep 10
-done
-MONITOR
-chmod +x /root/nfs-monitor.sh
+No services need to be restarted.
 
-echo "--- 7/7: Verification ---"
-echo "THREADS: $(cat /proc/fs/nfsd/threads)"
-df -h | grep nfs
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+vm.dirty_ratio = 40
+vm.dirty_background_ratio = 10
+vm.swappiness = 10
+Formatting /dev/sdb...
+meta-data=/dev/sdb               isize=512    agcount=32, agsize=14745600 blks
+         =                       sectsz=512   attr=2, projid32bit=1
+         =                       crc=1        finobt=1, sparse=1, rmapbt=1
+         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
+data     =                       bsize=4096   blocks=471859200, imaxpct=5
+         =                       sunit=0      swidth=0 blks
+naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
+log      =internal log           bsize=4096   blocks=230400, version=2
+         =                       sectsz=512   sunit=0 blks, lazy-count=1
+realtime =none                   extsz=4096   blocks=0, rtextents=0
+Discarding blocks...Done.
+Formatting /dev/sdc...
+meta-data=/dev/sdc               isize=512    agcount=32, agsize=14745600 blks
+         =                       sectsz=512   attr=2, projid32bit=1
+         =                       crc=1        finobt=1, sparse=1, rmapbt=1
+         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
+data     =                       bsize=4096   blocks=471859200, imaxpct=5
+         =                       sunit=0      swidth=0 blks
+naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
+log      =internal log           bsize=4096   blocks=230400, version=2
+         =                       sectsz=512   sunit=0 blks, lazy-count=1
+realtime =none                   extsz=4096   blocks=0, rtextents=0
+Discarding blocks...Done.
+Formatting /dev/sdd...
+meta-data=/dev/sdd               isize=512    agcount=32, agsize=14745600 blks
+         =                       sectsz=512   attr=2, projid32bit=1
+         =                       crc=1        finobt=1, sparse=1, rmapbt=1
+         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
+data     =                       bsize=4096   blocks=471859200, imaxpct=5
+         =                       sunit=0      swidth=0 blks
+naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
+log      =internal log           bsize=4096   blocks=230400, version=2
+         =                       sectsz=512   sunit=0 blks, lazy-count=1
+realtime =none                   extsz=4096   blocks=0, rtextents=0
+================================================================
+ SETUP COMPLETE
+ Threads: 512
+ Disks:   3 volumes mounted
+ MTU:     mtu 65536
+================================================================
+root@nf
