@@ -1,20 +1,22 @@
 #!/bin/bash
-
 ################################################################################
-# NFS MASTER v9.0 - THE GOLDEN CONFIG + PERMANENT MONITOR
-# Hardware: 70GB RAM | MTU 9000 | 128 Threads | 3 XFS Disks
+# NFS MASTER v9.8 - OS-LOCK SAFETY - FSTAB REPAIR - AUTO-VERIFY
 ################################################################################
 
-echo "--- 1/7: Installing Tools ---"
-apt update && apt install -y nfs-kernel-server xfsprogs attr sysstat
+echo "--- 1/7: Initializing ---"
+apt update && apt install -y nfs-kernel-server xfsprogs attr sysstat bc
 
-echo "--- 2/7: Configuring Netplan (MTU 9000) ---"
+# --- CRITICAL SAFETY: IDENTIFY OS DISK ---
+OS_DISK=$(lsblk -no PKNAME $(findmnt -n -o SOURCE /) | sed 's/[0-9]*//g')
+echo "[SYSTEM] OS is running on: /dev/$OS_DISK. This disk is now LOCKED."
+
+echo "--- 2/7: Network (MTU 9000) ---"
 NETPLAN_FILE=$(ls /etc/netplan/*.yaml | head -n 1)
 sed -i '/mtu:/d' "$NETPLAN_FILE"
-sed -i '/^  ethernets:/!b;n;a \      mtu: 9000' "$NETPLAN_FILE"
+sed -i '/^      ethernets:/!b;n;a \      mtu: 9000' "$NETPLAN_FILE"
 netplan apply
 
-echo "--- 3/7: Applying Sysctl Performance Tuning ---"
+echo "--- 3/7: Sysctl Performance ---"
 cat <<EOF > /etc/sysctl.d/99-nfs-performance.conf
 net.core.rmem_max=16777216
 net.core.wmem_max=16777216
@@ -28,27 +30,42 @@ vm.swappiness=10
 EOF
 sysctl -p /etc/sysctl.d/99-nfs-performance.conf
 
-echo "--- 4/7: Formatting Disks & Updating FSTAB ---"
-umount -l /mnt/nfs1 /mnt/nfs2 /mnt/nfs3 2>/dev/null
-for disk in a b c; do
-    mkfs.xfs -f -b size=4096 -d agcount=32 /dev/sd$disk
-    NEW_ID=$(blkid -s UUID -o value /dev/sd$disk)
-    NUM=$(( $(printf '%d' "'$disk") - 96 ))
+echo "--- 4/7: Formatting Data Disks (EXCLUDING $OS_DISK) ---"
+systemctl stop nfs-server 2>/dev/null
+exportfs -au
+umount -f /mnt/nfs1 /mnt/nfs2 /mnt/nfs3 2>/dev/null
+
+# Detect 1.8TB disks that are NOT the OS disk
+DATA_DISKS=$(lsblk -dnbo NAME,SIZE | awk -v os="/dev/$OS_DISK" '$2 > 1900000000000 && "/dev/"$1 != os {print $1}')
+
+NUM=1
+for dev in $DATA_DISKS; do
+    echo "Formatting Data Drive: /dev/$dev"
+    wipefs -a /dev/$dev
+    mkfs.xfs -f -b size=4096 -d agcount=32 /dev/$dev
+    NEW_ID=$(blkid -s UUID -o value /dev/$dev)
     mkdir -p /mnt/nfs$NUM
+    
+    # Update FSTAB entries
     sed -i "/\/mnt\/nfs$NUM/d" /etc/fstab
-    echo "UUID=$NEW_ID /mnt/nfs$NUM xfs defaults,noatime 0 1" >> /etc/fstab
+    echo "UUID=$NEW_ID /mnt/nfs$NUM xfs defaults,noatime 0 2" >> /etc/fstab
+    ((NUM++))
 done
+
+# --- NEW: FSTAB COMMENT REPAIR ---
+echo "Repairing FSTAB labels to match current hardware..."
+sed -i "s/on \/dev\/sd[a-z][0-9]/on \/dev\/${OS_DISK}2/g" /etc/fstab
+
 systemctl daemon-reload
 mount -a
 
-echo "--- 5/7: Setting 1MB Extent Hints & NFS Threads ---"
-for mnt in /mnt/nfs1 /mnt/nfs2 /mnt/nfs3; do
-    xfs_io -c "extsize 1m" $mnt
-    chattr +P $mnt 2>/dev/null
-done
-
+echo "--- 5/7: NFS Threads & Exports ---"
 mkdir -p /etc/systemd/system/nfs-server.service.d/
-echo -e "[Service]\nExecStart=\nExecStart=/usr/sbin/rpc.nfsd 128" > /etc/systemd/system/nfs-server.service.d/threads.conf
+cat <<EOF > /etc/systemd/system/nfs-server.service.d/threads.conf
+[Service]
+ExecStart=
+ExecStart=/usr/sbin/rpc.nfsd 256
+EOF
 
 cat <<EOF > /etc/exports
 /mnt/nfs1 *(rw,sync,no_subtree_check,no_root_squash)
@@ -60,32 +77,28 @@ systemctl daemon-reload
 exportfs -ra
 systemctl restart nfs-server
 
-echo "--- 6/7: Creating Permanent Monitor at /root/nfs-monitor.sh ---"
+echo "--- 6/7: Deploying Monitor ---"
 cat << 'MONITOR' > /root/nfs-monitor.sh
 #!/bin/bash
 while true; do
-    clear
-    echo "================================================================"
-    echo "         NFS MASTER MONITOR (3s REFRESH)                       "
-    echo "================================================================"
-    TC=$(ps aux | grep [n]fsd | wc -l)
-    echo -n "THREADS:     "; [[ "$TC" -ge 128 ]] && echo -e "\e[32m$TC (Healthy)\e[0m" || echo -e "\e[31m$TC (Low)\e[0m"
-    echo -n "SYSTEM LOAD: "; cat /proc/loadavg | cut -d' ' -f1-3
-    echo -n "DIRTY CACHE: "; grep "Dirty:" /proc/meminfo | awk '{print $2 / 1024 " MB"}'
-    dd if=/dev/zero of=/mnt/nfs1/.ext_test bs=1M count=1 conv=fsync status=none 2>/dev/null
-    EX=$(xfs_bmap /mnt/nfs1/.ext_test | grep -cE '^[[:space:]]+[0-9]+:')
-    echo -n "1MB EXTENT:  "; [[ "$EX" -eq 1 ]] && echo -e "\e[32mACTIVE\e[0m" || echo -e "\e[31mINACTIVE ($EX pieces)\e[0m"
-    rm -f /mnt/nfs1/.ext_test
-    echo "DISK WRITES: "; iostat -m -y 1 1 | grep -E "sd[a-c]" | awk '{print "  - " $1 ": " $4 " MB/s"}'
-    echo -n "TCP MSS:     "; MSS=$(ss -itn sport = :2049 | grep -oP 'mss:\K[0-9]+' | head -n 1)
-    if [[ -z "$MSS" ]]; then echo "No Clients"; elif [ "$MSS" -ge 8000 ]; then echo -e "\e[32m$MSS (Jumbo)\e[0m"; else echo -e "\e[33m$MSS (Small MTU)\e[0m"; fi
-    echo "================================================================"
-    echo "Run manually with: /root/nfs-monitor.sh | Press [Ctrl+C] to exit."
-    sleep 3
+    echo "--- $(date '+%H:%M:%S') ---"
+    CONFIGURED=$(cat /proc/fs/nfsd/threads 2>/dev/null || echo 0)
+    ACTIVE=$(ps -ef | grep "[n]fsd" | wc -l)
+    echo "THREADS: $CONFIGURED Max | $ACTIVE Active"
+    echo -n "CACHE:  "; grep "Dirty:" /proc/meminfo | awk '{print $2 / 1024 " MB Dirty"}'
+    echo "----------------------------------------------------------------"
+    sleep 10
 done
 MONITOR
 chmod +x /root/nfs-monitor.sh
 
-echo "--- 7/7: Success! Launching Monitor... ---"
-sleep 2
-/root/nfs-monitor.sh
+echo "--- 7/7: Verification ---"
+echo "----------------------------------------------------------------"
+echo "KERNEL THREADS: $(cat /proc/fs/nfsd/threads)"
+echo "DISK MOUNT STATUS:"
+df -h | grep nfs
+echo "----------------------------------------------------------------"
+echo "REPAIRED FSTAB:"
+grep -v "^#" /etc/fstab | grep -v "^$"
+echo "----------------------------------------------------------------"
+echo "SETUP SUCCESSFUL. To start monitor: /root/nfs-monitor.sh"
