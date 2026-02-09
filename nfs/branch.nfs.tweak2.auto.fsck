@@ -30,18 +30,34 @@ echo "/mnt/nfs1 *(rw,async,no_subtree_check,no_root_squash)" > /etc/exports
 echo "/mnt/nfs2 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 echo "/mnt/nfs3 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 exportfs -rav
-
-# 6. KERNEL SHIELD (40GB RAM BUFFER)
-sysctl -w vm.dirty_ratio=40
-sysctl -w vm.dirty_background_ratio=5
-sysctl -w vm.dirty_expire_centisecs=1000
+# 6. KERNEL SHIELD (7% WRITE SHIELD | 93% READ CACHE)
+# Write Shield: Start background flush at 3GB, Emergency flush at 7GB
+sysctl -w vm.dirty_ratio=7
+sysctl -w vm.dirty_background_ratio=3
+sysctl -w vm.dirty_expire_centisecs=3000
 sysctl -w vm.dirty_writeback_centisecs=100
-sysctl -w vm.vfs_cache_pressure=10
+
+# Read Cache: Priority 1 (Do not reclaim cache unless critical)
+sysctl -w vm.vfs_cache_pressure=1
 sysctl -w vm.swappiness=1
+sysctl -w vm.min_free_kbytes=1048576 
+sysctl -w vm.page-cluster=0
 sysctl -w kernel.numa_balancing=0
+
+# Network Performance
 sysctl -w net.core.netdev_max_backlog=10000
 sysctl -w net.core.somaxconn=4096
 sysctl -w net.core.rps_sock_flow_entries=32768
+
+# 6.5 TCP BBR & BUFFER SHIELD (HIGH LATENCY TUNING)
+# Set buffers to 64MB for high BDP (Bandwidth Delay Product)
+sysctl -w net.core.rmem_max=67108864
+sysctl -w net.core.wmem_max=67108864
+sysctl -w net.ipv4.tcp_rmem='4096 87380 67108864'
+sysctl -w net.ipv4.tcp_wmem='4096 65536 67108864'
+# Enable BBR
+sysctl -w net.core.default_qdisc=fq
+sysctl -w net.ipv4.tcp_congestion_control=bbr
 
 # 7. FORCE 1024 THREADS & RESTART
 sed -i 's/^RPCNFSDCOUNT.*/RPCNFSDCOUNT=1024/' /etc/default/nfs-kernel-server || echo "RPCNFSDCOUNT=1024" >> /etc/default/nfs-kernel-server
@@ -52,4 +68,5 @@ systemctl status nfs-kernel-server --no-pager
 echo "--- FINAL CHECK ---"
 grep "Dirty" /proc/meminfo
 pgrep nfsd | wc -l
+sysctl net.ipv4.tcp_congestion_control
 exportfs -v
