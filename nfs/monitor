@@ -1,0 +1,58 @@
+cat << 'EOF' > /root/8
+#!/bin/bash
+LOG="/tmp/nfs_status.log"
+touch $LOG
+echo "=================================================================="
+echo "   NFS MASTER DASHBOARD (16-CPU | 100GB RAM | 40GB SHIELD)"
+echo "   Time: $(date)"
+
+# CLEARLY LABELED TUNE2FS OUTPUT
+echo "--- OS HEALTH ---"
+echo "(Output from tune2fs tool)"
+tune2fs -l /dev/sda2 | grep -E "state|errors|checked"
+echo "------------------------------------------------------------------"
+
+echo "   WORKER THREADS: $(pgrep nfsd | wc -l) | LOAD: $(uptime | awk -F'load average:' '{print $2}')"
+
+# LAYMAN EXPLANATION OF BUCKETS
+echo "--- SERVER CAPACITY (How 'Full' the 1024 threads are) ---"
+echo "   (Numbers show total SECONDS spent at each 'Fullness' level)"
+grep "th" /proc/net/rpc/nfsd | awk '{printf "  0-10%%  Full (threads: 1-102): %-8s | 10-20%% Full (threads: 103-204): %-8s\n  20-30%% Full (threads: 205-307): %-8s | 30-40%% Full (threads: 308-409): %-8s\n  40-50%% Full (threads: 410-512): %-8s | 50-60%% Full (threads: 513-614): %-8s\n  60-70%% Full (threads: 615-716): %-8s | 70-80%% Full (threads: 717-819): %-8s\n  80-90%% Full (threads: 820-921): %-8s | 90-100%% Full (threads: 922-1024): %-s\n", $3, $4, $5, $6, $7, $8, $9, $10, $11, $12}'
+echo "=================================================================="
+
+# CALCULATE RAM STATISTICS
+dirty=$(grep "Dirty:" /proc/meminfo | awk '{printf "%.2f", $2/1048576}')
+cached=$(grep "Cached:" /proc/meminfo | awk '{printf "%.2f", $2/1048576}')
+
+# NETWORK AND DISK SPEED
+INTERFACE=$(ls /sys/class/net | grep -E 'eth|en|em' | head -1)
+RX1=$(cat /sys/class/net/$INTERFACE/statistics/rx_bytes)
+sleep 0.5
+RX2=$(cat /sys/class/net/$INTERFACE/statistics/rx_bytes)
+NET_MBps=$(( (RX2 - RX1) * 2 / 1024 / 1024 ))
+DISK_MBps=$(iostat -d -m 1 1 | grep -E "sd[b-d]" | awk '{sum+=$4} END {print sum}')
+
+# DETERMINE STATUS
+if (( $(echo "$dirty > 0.05" | bc -l) )); then
+    STATUS="[ SOAKING  ] - Data in RAM ($dirty GB)"
+elif (( $(echo "$DISK_MBps > 2.0" | bc -l) )); then
+    STATUS="[ FLUSHING ] - Writing to NVMe ($(printf "%.2f" $DISK_MBps) MB/s)"
+else
+    STATUS="[ BALANCED ] - System Idle"
+fi
+
+# UPDATE HISTORY LOG
+LAST_ENTRY=$(tail -n 1 $LOG)
+[[ "$STATUS" != "$LAST_ENTRY" ]] && echo "$(date +%H:%M:%S) $STATUS" >> $LOG
+
+# FINAL DISPLAY
+echo "1. RAM SHIELD : $dirty GB / 40.00 GB"
+echo "2. READ CACHE : $cached GB"
+echo "3. TRAFFIC    : IN: $NET_MBps MB/s | OUT: $(printf "%.2f" $DISK_MBps) MB/s"
+echo "4. CURRENT    : $STATUS"
+echo "------------------------------------------------------------------"
+echo "5. RECENT HISTORY (Detailed Events):"
+tail -n 5 $LOG
+echo "=================================================================="
+EOF
+chmod +x /root/8

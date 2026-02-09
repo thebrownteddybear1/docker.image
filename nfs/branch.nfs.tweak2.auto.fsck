@@ -1,0 +1,55 @@
+# 1. INSTALLS & OS FIXES
+apt-get update && apt-get install -y nfs-kernel-server xfsprogs nfs-common bc sysstat
+systemctl daemon-reload
+touch /forcefsck
+
+# 2. SAS OS DISK TUNING (DEADLINE)
+echo deadline > /sys/block/sda/queue/scheduler 2>/dev/null || echo mq-deadline > /sys/block/sda/queue/scheduler
+cat /sys/block/sda/queue/scheduler
+
+# 3. NVMe TRIM & XFS REPAIR
+systemctl enable fstrim.timer && systemctl start fstrim.timer
+fstrim -av
+umount /dev/sdb /dev/sdc /dev/sdd 2>/dev/null
+xfs_repair -L /dev/sdb
+xfs_repair -L /dev/sdc
+xfs_repair -L /dev/sdd
+
+# 4. FSTAB (SAS=NO DISCARD | NVMe=DISCARD)
+echo "UUID=1b43479c-d2ff-4f3d-b1e4-8c641b49c2f1 / ext4 defaults,noatime 0 1" > /etc/fstab
+echo "UUID=23DE-A7B1 /boot/efi vfat defaults,noatime 0 1" >> /etc/fstab
+echo "/dev/sdb /mnt/nfs1 xfs defaults,noatime,discard,logbsize=64k,allocsize=1g 0 2" >> /etc/fstab
+echo "/dev/sdc /mnt/nfs2 xfs defaults,noatime,discard,logbsize=64k,allocsize=1g 0 2" >> /etc/fstab
+echo "/dev/sdd /mnt/nfs3 xfs defaults,noatime,discard,logbsize=64k,allocsize=1g 0 2" >> /etc/fstab
+echo "/swap.img none swap sw 0 0" >> /etc/fstab
+mkdir -pv /mnt/nfs1 /mnt/nfs2 /mnt/nfs3
+mount -av
+
+# 5. ASYNC EXPORTS
+echo "/mnt/nfs1 *(rw,async,no_subtree_check,no_root_squash)" > /etc/exports
+echo "/mnt/nfs2 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
+echo "/mnt/nfs3 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
+exportfs -rav
+
+# 6. KERNEL SHIELD (40GB RAM BUFFER)
+sysctl -w vm.dirty_ratio=40
+sysctl -w vm.dirty_background_ratio=5
+sysctl -w vm.dirty_expire_centisecs=1000
+sysctl -w vm.dirty_writeback_centisecs=100
+sysctl -w vm.vfs_cache_pressure=10
+sysctl -w vm.swappiness=1
+sysctl -w kernel.numa_balancing=0
+sysctl -w net.core.netdev_max_backlog=10000
+sysctl -w net.core.somaxconn=4096
+sysctl -w net.core.rps_sock_flow_entries=32768
+
+# 7. FORCE 1024 THREADS & RESTART
+sed -i 's/^RPCNFSDCOUNT.*/RPCNFSDCOUNT=1024/' /etc/default/nfs-kernel-server || echo "RPCNFSDCOUNT=1024" >> /etc/default/nfs-kernel-server
+systemctl restart nfs-kernel-server
+systemctl status nfs-kernel-server --no-pager
+
+# 8. FINAL VERIFICATION
+echo "--- FINAL CHECK ---"
+grep "Dirty" /proc/meminfo
+pgrep nfsd | wc -l
+exportfs -v
