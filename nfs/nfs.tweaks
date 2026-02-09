@@ -1,119 +1,38 @@
-root@nfsserver:~# #!/bin/bash
-################################################################################
-# NFS MASTER v11.8 - 512 THREADS - 100GB RAM - NOBLE PRODUCTION
-################################################################################
+#!/bin/bash
 
-# 1. Protection & Identification
-OS_DISK=$(lsblk -no PKNAME $(findmnt -n -o SOURCE /) | sed 's/[0-9]*//g' | head -n 1)
-echo "--- Identified OS Disk: /dev/$OS_DISK (Protecting) ---"
+# 1. Install NFS Server
+apt update && apt install -y nfs-kernel-server
 
-# 2. Package Installation
-apt update && apt install -y nfs-kernel-server xfsprogs psmisc
-modprobe nfsd
+# 2. Configure 512 Threads (The reliable way)
+# This allows the server to scale up to 512 without hanging at boot
+sed -i 's/^RPCNFSDCOUNT.*/RPCNFSDCOUNT=512/' /etc/default/nfs-kernel-server
 
-# 3. Thread Lock (512)
-mkdir -p /etc/systemd/system/nfs-server.service.d/
-cat <<EOF > /etc/systemd/system/nfs-server.service.d/threads.conf
-[Service]
-ExecStart=
-ExecStart=/usr/sbin/rpc.nfsd 512
-EOF
-sed -i "s/^RPCNFSDCOUNT=.*/RPCNFSDCOUNT=512/" /etc/default/nfs-kernel-server
-sed -i "s/^[# ]*threads=.*/threads=512/" /etc/nfs.conf
-
-# 4. 100GB RAM Optimization
+# 3. Kernel Tuning for 100GB RAM (Write Buffering)
+# We set dirty_ratio high so your 70GB-100GB RAM acts as a massive speed vault
 cat <<EOF > /etc/sysctl.d/99-nfs-performance.conf
-net.core.rmem_max=16777216
-net.core.wmem_max=16777216
-net.ipv4.tcp_rmem=4096 87380 16777216
-net.ipv4.tcp_wmem=4096 65536 16777216
-vm.dirty_ratio=40
-echo "================================================================"/etc/exports != os {print $1}')
---- Identified OS Disk: /dev/sda (Protecting) ---
-Hit:1 http://sg.archive.ubuntu.com/ubuntu noble InRelease
-Hit:2 http://sg.archive.ubuntu.com/ubuntu noble-updates InRelease
-Hit:3 http://sg.archive.ubuntu.com/ubuntu noble-backports InRelease
-Hit:4 http://security.ubuntu.com/ubuntu noble-security InRelease
-Reading package lists... Done
-Building dependency tree... Done
-Reading state information... Done
-19 packages can be upgraded. Run 'apt list --upgradable' to see them.
-Reading package lists... Done
-Building dependency tree... Done
-Reading state information... Done
-nfs-kernel-server is already the newest version (1:2.6.4-3ubuntu5.1).
-xfsprogs is already the newest version (6.6.0-1ubuntu2.1).
-The following NEW packages will be installed:
-  psmisc
-0 upgraded, 1 newly installed, 0 to remove and 19 not upgraded.
-Need to get 179 kB of archives.
-After this operation, 610 kB of additional disk space will be used.
-Get:1 http://sg.archive.ubuntu.com/ubuntu noble/main amd64 psmisc amd64 23.7-1build1 [179 kB]
-Fetched 179 kB in 0s (725 kB/s)
-debconf: delaying package configuration, since apt-utils is not installed
-Selecting previously unselected package psmisc.
-(Reading database ... 75919 files and directories currently installed.)
-Preparing to unpack .../psmisc_23.7-1build1_amd64.deb ...
-Unpacking psmisc (23.7-1build1) ...
-Setting up psmisc (23.7-1build1) ...
-Scanning processes...
-Scanning linux images...
+# Allow up to 40% of RAM to be "dirty" (unwritten data)
+vm.dirty_ratio = 40
+vm.dirty_background_ratio = 10
 
-Running kernel seems to be up-to-date.
-
-No services need to be restarted.
-
-No containers need to be restarted.
-
-No user sessions are running outdated binaries.
-
-No VM guests are running outdated hypervisor (qemu) binaries on this host.
+# Network stack tuning for High Latency
 net.core.rmem_max = 16777216
 net.core.wmem_max = 16777216
 net.ipv4.tcp_rmem = 4096 87380 16777216
 net.ipv4.tcp_wmem = 4096 65536 16777216
-vm.dirty_ratio = 40
-vm.dirty_background_ratio = 10
-vm.swappiness = 10
-Formatting /dev/sdb...
-meta-data=/dev/sdb               isize=512    agcount=32, agsize=14745600 blks
-         =                       sectsz=512   attr=2, projid32bit=1
-         =                       crc=1        finobt=1, sparse=1, rmapbt=1
-         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
-data     =                       bsize=4096   blocks=471859200, imaxpct=5
-         =                       sunit=0      swidth=0 blks
-naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
-log      =internal log           bsize=4096   blocks=230400, version=2
-         =                       sectsz=512   sunit=0 blks, lazy-count=1
-realtime =none                   extsz=4096   blocks=0, rtextents=0
-Discarding blocks...Done.
-Formatting /dev/sdc...
-meta-data=/dev/sdc               isize=512    agcount=32, agsize=14745600 blks
-         =                       sectsz=512   attr=2, projid32bit=1
-         =                       crc=1        finobt=1, sparse=1, rmapbt=1
-         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
-data     =                       bsize=4096   blocks=471859200, imaxpct=5
-         =                       sunit=0      swidth=0 blks
-naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
-log      =internal log           bsize=4096   blocks=230400, version=2
-         =                       sectsz=512   sunit=0 blks, lazy-count=1
-realtime =none                   extsz=4096   blocks=0, rtextents=0
-Discarding blocks...Done.
-Formatting /dev/sdd...
-meta-data=/dev/sdd               isize=512    agcount=32, agsize=14745600 blks
-         =                       sectsz=512   attr=2, projid32bit=1
-         =                       crc=1        finobt=1, sparse=1, rmapbt=1
-         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
-data     =                       bsize=4096   blocks=471859200, imaxpct=5
-         =                       sunit=0      swidth=0 blks
-naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
-log      =internal log           bsize=4096   blocks=230400, version=2
-         =                       sectsz=512   sunit=0 blks, lazy-count=1
-realtime =none                   extsz=4096   blocks=0, rtextents=0
-================================================================
- SETUP COMPLETE
- Threads: 512
- Disks:   3 volumes mounted
- MTU:     mtu 65536
-================================================================
-root@nf
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_slow_start_after_idle = 0
+EOF
+
+sysctl -p /etc/sysctl.d/99-nfs-performance.conf
+
+# 4. Prepare Exports (Optimized for Async Speed)
+# Adjust these paths to your actual 1.8TB mount points
+cat <<EOF > /etc/exports
+/mnt/nfs1 *(rw,async,no_subtree_check,no_root_squash)
+/mnt/nfs2 *(rw,async,no_subtree_check,no_root_squash)
+/mnt/nfs3 *(rw,async,no_subtree_check,no_root_squash)
+EOF
+
+# 5. Apply and Restart
+exportfs -ra
+systemctl restart nfs-kernel-server

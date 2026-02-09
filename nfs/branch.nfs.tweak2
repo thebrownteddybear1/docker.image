@@ -1,0 +1,104 @@
+#!/bin/bash
+# ==================================================================
+# NFS PERFORMANCE TUNING: 16-CPU | 90GB RAM | NVMe PIPELINE
+# ==================================================================
+
+# 1. APPLY KERNEL TUNING (The "Latency Buffer")
+# This tells the server to use its 90GB RAM as a shock absorber.
+# It hides the 80ms network delay from your clusters.
+cat <<EOF | sudo tee /etc/sysctl.conf
+vm.dirty_background_ratio=2
+vm.dirty_ratio=90
+vm.dirty_expire_centisecs=500
+vm.dirty_writeback_centisecs=100
+kernel.numa_balancing=0
+EOF
+sudo sysctl -p >/dev/null
+
+# 2. MOUNT & OPTIMIZE HARDWARE (No Formatting)
+# We apply the 'none' scheduler to let NVMe run at full 1.5GB/s speed.
+DEVICES=("sdb" "sdc" "sdd")
+MOUNTS=("/mnt/nfs1" "/mnt/nfs2" "/mnt/nfs3")
+
+for i in "${!DEVICES[@]}"; do
+    DEV="/dev/${DEVICES[$i]}"
+    MNT="${MOUNTS[$i]}"
+    
+    # Create mount point if it doesn't exist
+    sudo mkdir -p $MNT
+    
+    # Mount only if not already mounted
+    if ! mountpoint -q "$MNT"; then
+        sudo mount $DEV $MNT 2>/dev/null || echo "Warning: Could not mount $DEV. Check if it has a filesystem."
+    fi
+
+    # NVMe Hardware Optimization
+    echo none | sudo tee /sys/block/${DEVICES[$i]}/queue/scheduler
+    echo 1024 | sudo tee /sys/block/${DEVICES[$i]}/queue/nr_requests
+    echo 8192 | sudo tee /sys/block/${DEVICES[$i]}/queue/read_ahead_kb
+done
+
+# 3. CPU ALIGNMENT (NFS Thread Pinning)
+# This locks the 520+ threads to Cores 0-15 to stop CPU lag.
+sleep 2
+pgrep nfsd | xargs -I {} taskset -pc 0-15 {} 2>/dev/null
+
+# 4. CREATE THE PLAIN-ENGLISH MONITOR (/root/8)
+# This creates the dashboard that explains "Dirty" and "Cached" memory.
+cat <<'MONITOR' | sudo tee /root/8
+#!/bin/bash
+LOG="/var/log/nfs_history.log"
+touch $LOG
+clear
+echo "=================================================================="
+echo "      NFS STORAGE DASHBOARD (PLAIN ENGLISH MODE)"
+echo "      Time: $(date)"
+echo "=================================================================="
+
+echo "1. MEMORY & SAFETY:"
+# Cached = Safe on Disk. Dirty = Pending Write.
+cached=$(grep "Cached:" /proc/meminfo | awk '{printf "%.2f", $2/1024/1024}')
+dirty=$(grep "Dirty:" /proc/meminfo | awk '{printf "%.2f", $2/1024/1024}')
+
+echo "SAFE ON DISK (Safe on NVMe but kept in RAM) : $cached GB"
+echo "WAITING IN RAM (Pending write to NVMe)      : $dirty GB"
+echo "------------------------------------------------------------------"
+
+echo "2. DISK SPEEDOMETER (wkB/s = Speed per drive):"
+# wkB/s is Write Kilobytes per Second. 1000 wkB/s = 1 MB/s.
+iostat -dxy 1 1 | grep -E "sd[b-d]" | awk '{printf "%-10s %-15s %-10s %-10s\n", $1, $10" wkB/s", "Queue: "$22, $NF" %util"}'
+echo ""
+
+echo "3. TOTAL TRAFFIC FLOW (MB/s):"
+# MB/s is Megabytes per Second. This is your 'Traffic' volume.
+NET_RX1=$(cat /sys/class/net/ens34/statistics/rx_bytes)
+sleep 1
+NET_RX2=$(cat /sys/class/net/ens34/statistics/rx_bytes)
+NET_SPEED=$(( (NET_RX2 - NET_RX1) / 1024 / 1024 ))
+DISK_SPEED=$(iostat -dy 1 1 | grep -E "sd[b-d]" | awk '{sum+=$4} END {print sum/1024}')
+
+echo "FROM NETWORK (Traffic In) : $NET_SPEED MB/s"
+echo "TO NVMe DISK (Writing Out): $(printf "%.2f" $DISK_SPEED) MB/s"
+echo ""
+
+# Status and History Logic
+if (( $(echo "$DISK_SPEED > $NET_SPEED + 2" | bc -l) )); then
+    STATUS="[ FLUSHING ] - NVMe is clearing the RAM backlog."
+elif (( $(echo "$NET_SPEED > $DISK_SPEED + 2" | bc -l) )); then
+    STATUS="[ SOAKING  ] - RAM is absorbing the 80ms network lag."
+else
+    STATUS="[ BALANCED ] - Network and Disks are stable."
+fi
+
+echo "CURRENT STATUS: $STATUS"
+echo "$STATUS ($(date +%H:%M:%S))" >> $LOG
+
+echo "------------------------------------------------------------------"
+echo "4. RECENT HISTORY (Last 5 Status Changes):"
+tail -n 5 $LOG | uniq
+echo "=================================================================="
+MONITOR
+
+sudo chmod +x /root/8
+echo "TWEAKS APPLIED SUCCESSFULLY."
+echo "Run 'watch -n 1 /root/8' to see your 90GB buffer in action."

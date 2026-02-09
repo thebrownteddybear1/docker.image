@@ -1,0 +1,67 @@
+#!/bin/bash
+# ==================================================================
+# FINAL REFINED MONITOR (v9) - FIXED IOSTAT SYNTAX
+# ==================================================================
+
+# 1. APPLY KERNEL TUNING
+cat <<EOF | sudo tee /etc/sysctl.conf
+vm.dirty_background_ratio=2
+vm.dirty_ratio=90
+vm.dirty_expire_centisecs=500
+vm.dirty_writeback_centisecs=100
+kernel.numa_balancing=0
+EOF
+sudo sysctl -p
+
+# 2. PIN NFSD THREADS
+pgrep nfsd | xargs -I {} taskset -pc 0-15 {} 2>/dev/null
+
+# 3. THE UPDATED DASHBOARD (/root/8)
+cat <<'MONITOR' | sudo tee /root/8
+#!/bin/bash
+clear
+echo "=================================================================="
+echo "      NFS TRIPLE-EXPORT DASHBOARD (NVMe OPTIMIZED)"
+echo "      Time: $(date)"
+echo "=================================================================="
+
+echo "1. THREADS & CPU AFFINITY:"
+nfsd_threads=$(pgrep nfsd | wc -l)
+on_target=$(ps -eLo psr,comm | grep nfsd | awk '$1 >= 0 && $1 <= 15' | wc -l)
+echo "Cores 0-15 Alignment: $on_target / $nfsd_threads"
+echo ""
+
+echo "2. RAM BUFFER (90GB GOAL):"
+# Cached = Data already safe on NVMe. Dirty = Data waiting to be written.
+grep -E "(Cached|Dirty|Writeback):" /proc/meminfo | awk '{printf "%-15s %10.2f GB\n", $1, $2/1024/1024}'
+free -h | grep "Mem:" | awk '{print "Total: "$2 " | Used: "$3 " | Available: "$7}'
+echo ""
+
+echo "3. DISK I/O (NVMe REAL-TIME):"
+# Removed 'n' flag which causes errors on some versions
+iostat -dxy 1 1 | grep -E "sd[b-d]" | awk '{printf "%-10s %-15s %-10s %-10s\n", $1, $10" wkB/s", "Queue: "$22, $NF" %util"}'
+echo ""
+
+echo "4. NETWORK VS DISK THROUGHPUT:"
+NET_RX1=$(cat /sys/class/net/ens34/statistics/rx_bytes)
+sleep 1
+NET_RX2=$(cat /sys/class/net/ens34/statistics/rx_bytes)
+NET_SPEED=$(( (NET_RX2 - NET_RX1) / 1024 / 1024 ))
+# Fixed iostat call here too
+DISK_SPEED=$(iostat -dy 1 1 | grep -E "sd[b-d]" | awk '{sum+=$4} END {print sum/1024}')
+
+echo "Network Inbound:  $NET_SPEED MB/s"
+echo "Disk Outbound:     $(printf "%.2f" $DISK_SPEED) MB/s"
+
+if (( $(echo "$DISK_SPEED > $NET_SPEED + 2" | bc -l) )); then
+    echo "STATUS: [ DRAINING ] - NVMe is flushing data to permanent storage."
+elif (( $(echo "$NET_SPEED > $DISK_SPEED + 2" | bc -l) )); then
+    echo "STATUS: [ ABSORBING ] - RAM is soaking up network data."
+else
+    echo "STATUS: [ IDLE / BALANCED ]"
+fi
+echo "=================================================================="
+MONITOR
+
+sudo chmod +x /root/8
+echo "FIX APPLIED. Run: watch -n 1 /root/8"
