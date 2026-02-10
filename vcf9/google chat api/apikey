@@ -31,3 +31,6 @@ echo -e "\n"
 EOF
 
 chmod +x /root/send_stats.sh
+
+
+while true; do ./send_stats.sh ; sleep 300;  done
