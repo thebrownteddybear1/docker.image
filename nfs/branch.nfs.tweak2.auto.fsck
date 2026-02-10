@@ -1,11 +1,17 @@
-# 1. INSTALLS & OS FIXES
-apt-get update && apt-get install -y nfs-kernel-server xfsprogs nfs-common bc sysstat
+#!/bin/bash
+# 1. INSTALLS & OS FIXES (Added CRON here)
+apt-get update && apt-get install -y nfs-kernel-server xfsprogs nfs-common bc sysstat cron
 systemctl daemon-reload
+systemctl enable --now cron
 touch /forcefsck
 
-# 2. SAS OS DISK TUNING (DEADLINE)
-echo deadline > /sys/block/sda/queue/scheduler 2>/dev/null || echo mq-deadline > /sys/block/sda/queue/scheduler
-cat /sys/block/sda/queue/scheduler
+# 2. WIPE OLD GHOST CONFIGS (Prevent overwriting our 7GB limit)
+rm -f /etc/sysctl.d/99-nfs-performance.conf
+rm -f /etc/sysctl.d/99-nfs-speed.conf
+rm -f /etc/sysctl.d/10-bufferbloat.conf
+sed -i '/vm.dirty/d' /etc/sysctl.conf
+sed -i '/net.core/d' /etc/sysctl.conf
+sed -i '/net.ipv4/d' /etc/sysctl.conf
 
 # 3. NVMe TRIM & XFS REPAIR
 systemctl enable fstrim.timer && systemctl start fstrim.timer
@@ -15,13 +21,7 @@ xfs_repair -L /dev/sdb
 xfs_repair -L /dev/sdc
 xfs_repair -L /dev/sdd
 
-# 4. FSTAB (SAS=NO DISCARD | NVMe=DISCARD)
-echo "UUID=1b43479c-d2ff-4f3d-b1e4-8c641b49c2f1 / ext4 defaults,noatime 0 1" > /etc/fstab
-echo "UUID=23DE-A7B1 /boot/efi vfat defaults,noatime 0 1" >> /etc/fstab
-echo "/dev/sdb /mnt/nfs1 xfs defaults,noatime,discard,logbsize=64k,allocsize=1g 0 2" >> /etc/fstab
-echo "/dev/sdc /mnt/nfs2 xfs defaults,noatime,discard,logbsize=64k,allocsize=1g 0 2" >> /etc/fstab
-echo "/dev/sdd /mnt/nfs3 xfs defaults,noatime,discard,logbsize=64k,allocsize=1g 0 2" >> /etc/fstab
-echo "/swap.img none swap sw 0 0" >> /etc/fstab
+# 4. FSTAB & MOUNTING
 mkdir -pv /mnt/nfs1 /mnt/nfs2 /mnt/nfs3
 mount -av
 
@@ -30,43 +30,53 @@ echo "/mnt/nfs1 *(rw,async,no_subtree_check,no_root_squash)" > /etc/exports
 echo "/mnt/nfs2 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 echo "/mnt/nfs3 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 exportfs -rav
+
 # 6. KERNEL SHIELD (7% WRITE SHIELD | 93% READ CACHE)
-# Write Shield: Start background flush at 3GB, Emergency flush at 7GB
-sysctl -w vm.dirty_ratio=7
-sysctl -w vm.dirty_background_ratio=3
-sysctl -w vm.dirty_expire_centisecs=3000
-sysctl -w vm.dirty_writeback_centisecs=100
-
-# Read Cache: Priority 1 (Do not reclaim cache unless critical)
-sysctl -w vm.vfs_cache_pressure=1
-sysctl -w vm.swappiness=1
-sysctl -w vm.min_free_kbytes=1048576 
-sysctl -w vm.page-cluster=0
-sysctl -w kernel.numa_balancing=0
-
-# Network Performance
-sysctl -w net.core.netdev_max_backlog=10000
-sysctl -w net.core.somaxconn=4096
-sysctl -w net.core.rps_sock_flow_entries=32768
-
-# 6.5 TCP BBR & BUFFER SHIELD (HIGH LATENCY TUNING)
-# Set buffers to 64MB for high BDP (Bandwidth Delay Product)
-sysctl -w net.core.rmem_max=67108864
-sysctl -w net.core.wmem_max=67108864
-sysctl -w net.ipv4.tcp_rmem='4096 87380 67108864'
-sysctl -w net.ipv4.tcp_wmem='4096 65536 67108864'
+cat << 'EOF' > /etc/sysctl.d/99-nfs-golden.conf
 # Enable BBR
-sysctl -w net.core.default_qdisc=fq
-sysctl -w net.ipv4.tcp_congestion_control=bbr
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
 
-# 7. FORCE 1024 THREADS & RESTART
+# 7GB Write Shield (7% of 100GB)
+vm.dirty_ratio = 7
+vm.dirty_background_ratio = 3
+vm.dirty_expire_centisecs = 3000
+vm.dirty_writeback_centisecs = 100
+
+# High Latency Tuning (64MB Buffers)
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+net.ipv4.tcp_rmem = 4096 87380 67108864
+net.ipv4.tcp_wmem = 4096 65536 67108864
+
+# Read Cache Priority
+vm.vfs_cache_pressure = 1
+vm.swappiness = 1
+vm.min_free_kbytes = 1048576
+kernel.numa_balancing = 0
+EOF
+sysctl -p /etc/sysctl.d/99-nfs-golden.conf
+
+# 7. AUTO-FLUSH SAFETY DAEMON (90GB TRIGGER)
+cat << 'EOF' > /usr/local/bin/nfs_autoflush.sh
+#!/bin/bash
+CACHED_KB=$(grep -w "Cached:" /proc/meminfo | awk '{print $2}')
+if [ "$CACHED_KB" -gt 94371840 ]; then
+    echo "$(date) - Cache at 90GB+; Auto-Flushing..." >> /var/log/nfs_flush.log
+    sync; echo 3 > /proc/sys/vm/drop_caches
+fi
+EOF
+chmod +x /usr/local/bin/nfs_autoflush.sh
+touch /var/log/nfs_flush.log
+
+# Ensure Crontab is set
+(crontab -l 2>/dev/null | grep -v "nfs_autoflush"; echo "* * * * * /usr/local/bin/nfs_autoflush.sh") | crontab -
+
+# 8. FORCE 1024 THREADS & RESTART
 sed -i 's/^RPCNFSDCOUNT.*/RPCNFSDCOUNT=1024/' /etc/default/nfs-kernel-server || echo "RPCNFSDCOUNT=1024" >> /etc/default/nfs-kernel-server
 systemctl restart nfs-kernel-server
-systemctl status nfs-kernel-server --no-pager
 
-# 8. FINAL VERIFICATION
-echo "--- FINAL CHECK ---"
-grep "Dirty" /proc/meminfo
-pgrep nfsd | wc -l
+echo "--- GOLDEN SETUP COMPLETE ---"
+sysctl vm.dirty_ratio
 sysctl net.ipv4.tcp_congestion_control
-exportfs -v
+crontab -l | grep nfs_autoflush

@@ -1,77 +1,32 @@
-cat << 'EOF' > /root/8
-#!/bin/bash
-G='\033[0;32m'; Y='\033[1;33m'; R='\033[0;31m'; N='\033[0m'
-LOG="/tmp/nfs_status.log"; touch $LOG
-echo -e "=================================================================="
-echo -e "   NFS MASTER DASHBOARD (16-CPU | 100GB RAM)"
-echo -e "   Time: $(date)"
 
-# OS SETTINGS & RATIOS
-INTERFACE=$(ls /sys/class/net | grep -E 'eth|en|em' | head -1)
-W_RATIO=$(sysctl -n vm.dirty_ratio)
-W_LIMIT=$(echo "100 * $W_RATIO / 100" | bc)
-R_RATIO=$((100 - W_RATIO))
-R_LIMIT=$((100 - W_LIMIT))
-ALGO=$(sysctl -n net.ipv4.tcp_congestion_control)
+==================================================================
+   NFS MASTER DASHBOARD (16-CPU | 100GB RAM | MTU: 9000)
+   Time: Tue Feb 10 02:04:28 UTC 2026
+------------------------------------------------------------------
+--- AUTO-FLUSH SAFETY (90GB TRIGGER) ---
+  Status: ACTIVE | Flushes: 0
+0 | Last: NEVER
+------------------------------------------------------------------
+--- NFSD THREAD STATES (Total: 530) ---
+  Running: 0 | Disk Wait: 0 | Sleeping/Idle: 512
+------------------------------------------------------------------
+--- CPU BUCKET UTILIZATION ---
+  Bucket 1 (ESXi Traffic) : 0%
+  Bucket 4 (NFS Storage) : 0%
+------------------------------------------------------------------
+--- LIVE CLIENT TCP METRICS ---
+   192.168.50.72:891 | RTT:58.167ms | CWND:20  | MSS:8948  | BBR
+   192.168.50.73:666 | RTT:61.638ms | CWND:12  | MSS:8948  | BBR
+   192.168.50.75:911 | RTT:101.405ms | CWND:30  | MSS:8948  | BBR
+   192.168.50.70:912 | RTT: 2.463ms | CWND:30  | MSS:8948  | BBR
+   192.168.50.74:911 | RTT:99.437ms | CWND:24  | MSS:8948  | BBR
+   192.168.50.71:966 | RTT: 4.671ms | CWND:28  | MSS:8948  | BBR
+------------------------------------------------------------------
+1. RAM SHIELD (WRITE) : 0.21 GB / 7.00 GB
+2. READ CACHE (READ)  : 28.94 GB / 93.00 GB [31%]
+   Cache Fill Level   : [######--------------]
+3. TRAFFIC TO NVMe    : 10.92 MB/s
+==================================================================
 
-echo -e "   RATIOS : WRITE: ${G}${W_RATIO}%${N} | READ: ${G}${R_RATIO}%${N} | ALGO: ${G}${ALGO^^}${N}"
-echo -e "   LIMITS : WRITE: ${G}${W_LIMIT}GB${N} | READ: ${G}${R_LIMIT}GB${N}"
-echo -e "------------------------------------------------------------------"
 
-# TCP METRICS WITH SPEED TARGETS
-echo -e "--- LIVE CLIENT TCP METRICS ---"
-echo -e "   ${Y}Target for 10G: 100 (Good) to 200+ (Full Speed)${N}"
-ss -tin sport = :2049 | awk '/ESTAB/ {ip=$5} /cubic|bbr/ {print ip, $4, $11}' | while read ip rtt cwnd; do
-    RTT_VAL=$(echo $rtt | cut -d: -f2 | cut -d/ -f1)
-    CWND_VAL=$(echo $cwnd | cut -d: -f2)
-    
-    # Latency Color
-    [[ $(echo "$RTT_VAL > 15" | bc -l) -eq 1 ]] && R_COL=$R || R_COL=$G
-    
-    # CWND Performance Colors
-    if [ "$CWND_VAL" -ge 150 ]; then C_COL=$G      # Excellent
-    elif [ "$CWND_VAL" -ge 100 ]; then C_COL=$G    # Good (Target)
-    elif [ "$CWND_VAL" -ge 50 ]; then C_COL=$Y     # Average
-    else C_COL=$R                                  # Choked/Slow
-    fi
-    
-    printf "   Client: %-18s | RTT: %b%-6sms%b | CWND: %b%-4s%b\n" "$ip" "$R_COL" "$RTT_VAL" "$N" "$C_COL" "$CWND_VAL" "$N"
-done
 
-# RAM & TRAFFIC
-dirty=$(grep "Dirty:" /proc/meminfo | awk '{printf "%.2f", $2/1048576}')
-cached=$(grep -w "Cached:" /proc/meminfo | awk '{printf "%.2f", $2/1048576}')
-RX1=$(cat /sys/class/net/$INTERFACE/statistics/rx_bytes); sleep 0.5; RX2=$(cat /sys/class/net/$INTERFACE/statistics/rx_bytes)
-NET_MBps=$(( (RX2 - RX1) * 2 / 1024 / 1024 ))
-DISK_MBps=$(iostat -d -m 1 1 | grep -E "sd[b-d]" | awk '{sum+=$4} END {printf "%.2f", sum}')
-
-# CACHE FILL BAR (93GB Target)
-cache_pct=$(echo "scale=0; ($cached * 100) / $R_LIMIT" | bc -l)
-bar_len=$((cache_pct / 5))
-bar=$(printf "%${bar_len}s" | tr ' ' '#')
-empty=$(printf "%$((20 - bar_len))s" | tr ' ' '-')
-
-# STATUS LOGIC
-if (( $(echo "$dirty > ($W_LIMIT * 0.9)" | bc -l) )); then
-    STATUS="${R}[ SHIELD FULL ]${N} - Emergency Flush"
-elif (( $(echo "$DISK_MBps > 1.5" | bc -l) )); then
-    STATUS="${G}[ FLUSHING    ]${N} - Writing to NVMe ($DISK_MBps MB/s)"
-else
-    STATUS="${G}[ SOAKING     ]${N} - Data in RAM ($dirty GB)"
-fi
-
-LAST_ENTRY=$(tail -n 1 $LOG)
-[[ "$STATUS" != "$LAST_ENTRY" ]] && echo -e "$(date +%H:%M:%S) $STATUS" >> $LOG
-
-echo -e "=================================================================="
-echo -e "1. RAM SHIELD (WRITE) : ${G}$dirty GB${N} / ${W_LIMIT}.00 GB (${W_RATIO}% Limit)"
-echo -e "2. READ CACHE (READ)  : ${G}$cached GB${N} / ${R_LIMIT}.00 GB (${R_RATIO}% Limit)"
-echo -e "   Cache Fill Level   : [${G}${bar}${N}${empty}] ${cache_pct}%"
-echo -e "3. TRAFFIC            : IN: $NET_MBps MB/s | OUT: $DISK_MBps MB/s"
-echo -e "4. CURRENT            : $STATUS"
-echo -e "------------------------------------------------------------------"
-echo -e "5. RECENT HISTORY:"
-tail -n 5 $LOG
-echo -e "=================================================================="
-EOF
-chmod +x /root/8
