@@ -1,0 +1,64 @@
+# 1. Create the script file
+cat << 'EOF' > /root/nfsflush.crontab.sh
+#!/bin/bash
+
+# --- CONFIGURATION ---
+THRESHOLD_GB=90
+MOUNTS=("/mnt/nfs1" "/mnt/nfs2" "/mnt/nfs3")
+LOCK_FILE="/tmp/nfs_read_sync.lock"
+
+echo "------------------------------------------------"
+echo "RAW SYSTEM MEMORY DATA:"
+grep -E "Cached|Dirty|Writeback" /proc/meminfo
+echo "------------------------------------------------"
+
+# --- CALCULATION ---
+CACHED_KB=$(grep -w "Cached:" /proc/meminfo | awk '{print $2}')
+CURRENT_GB=$((CACHED_KB/1024/1024))
+
+echo "Calculated Cache: ${CURRENT_GB}GB"
+echo "Trigger Point:    ${THRESHOLD_GB}GB"
+
+# --- LOGIC ---
+if [ "$CURRENT_GB" -ge "$THRESHOLD_GB" ]; then
+    echo "!!! THRESHOLD REACHED !!!"
+
+    if [ -f "$LOCK_FILE" ]; then
+        echo "STOP: Sync already running (Lock: $LOCK_FILE)."
+        exit 0
+    fi
+
+    touch "$LOCK_FILE"
+    echo "EVENT: $(date): Flushing Cache at ${CURRENT_GB}GB"
+
+    for DIR in "${MOUNTS[@]}"; do
+        if [ -d "$DIR" ]; then
+            echo "STARTING: sync -f $DIR"
+            sync -f "$DIR"
+            echo "FINISHED: sync -f $DIR"
+        fi
+    done
+
+    echo "STARTING: drop_caches"
+    echo 1 > /proc/sys/vm/drop_caches
+    echo "FINISHED: drop_caches"
+    
+    rm -f "$LOCK_FILE"
+    echo "SUCCESS: System has been flushed."
+else
+    echo "RESULT: Cache level is safe. No action taken."
+fi
+echo "------------------------------------------------"
+EOF
+
+# 2. Set execution permissions
+chmod +x /root/nfsflush.crontab.sh
+
+# 3. Append to /etc/crontab (Note the 'root' user field required here)
+# First, remove any existing entry to prevent duplicates
+sed -i '/nfsflush.crontab.sh/d' /etc/crontab
+
+# Add the 10-minute entry
+echo "*/10 * * * * root    /bin/bash /root/nfsflush.crontab.sh > /dev/null 2>&1" >> /etc/crontab
+
+echo "DONE: Script created and /etc/crontab updated."
