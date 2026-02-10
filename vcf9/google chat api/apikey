@@ -1,1 +1,24 @@
 AIzaSyCAZxj8vQEnn_wyXUA3PCoUEOWdT4_2NxY
+
+
+cat << 'EOF' > /root/send_stats.sh
+#!/bin/bash
+# Replace YOUR_KEY with the actual key from AI Studio
+API_KEY="AIzaSyCAZxj8vQEnn_wyXUA3PCoUEOWdT4_2NxY"
+
+# 1. Capture the dashboard and strip colors
+DATA=$(/root/a | sed 's/\x1b\[[0-9;]*m//g')
+
+# 2. Package it into a JSON format
+JSON_DATA=$(jq -n --arg msg "Analyze this VCF 9 Lab Telemetry: $DATA" '{contents: [{parts: [{text: $msg}]}]}')
+
+# 3. Send it
+curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}" \
+    -H 'Content-Type: application/json' \
+    -d "$JSON_DATA" > /tmp/gemini_response.json
+
+# 4. Show the AI's advice
+cat /tmp/gemini_response.json | grep -oP '"text": "\K[^"]+'
+EOF
+
+chmod +x /root/send_stats.sh
