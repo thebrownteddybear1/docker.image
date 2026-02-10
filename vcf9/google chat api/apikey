@@ -1,24 +1,24 @@
-AIzaSyCAZxj8vQEnn_wyXUA3PCoUEOWdT4_2NxY
-
-
+#AIzaSyCAZxj8vQEnn_wyXUA3PCoUEOWdT4_2NxY
 cat << 'EOF' > /root/send_stats.sh
 #!/bin/bash
-# Replace YOUR_KEY with the actual key from AI Studio
+# --- CONFIG ---
 API_KEY="AIzaSyCAZxj8vQEnn_wyXUA3PCoUEOWdT4_2NxY"
+MODEL="gemini-3-flash-preview"
 
-# 1. Capture the dashboard and strip colors
-DATA=$(/root/a | sed 's/\x1b\[[0-9;]*m//g')
+# 1. Capture and Clean Dashboard
+# Silence the array error and strip colors
+DATA=$(/root/a 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')
 
-# 2. Package it into a JSON format
+# 2. Package into JSON with safe escaping
 JSON_DATA=$(jq -n --arg msg "Analyze this VCF 9 Lab Telemetry: $DATA" '{contents: [{parts: [{text: $msg}]}]}')
 
-# 3. Send it
-curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}" \
+# 3. Send to Gemini (v1beta + Gemini 3)
+RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}" \
     -H 'Content-Type: application/json' \
-    -d "$JSON_DATA" > /tmp/gemini_response.json
+    -d "$JSON_DATA")
 
-# 4. Show the AI's advice
-cat /tmp/gemini_response.json | grep -oP '"text": "\K[^"]+'
+# 4. Output the Advice
+echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text' 2>/dev/null || echo "Error: $(echo "$RESPONSE" | jq -r '.error.message // "Check Key/Internet"')"
 EOF
 
 chmod +x /root/send_stats.sh
