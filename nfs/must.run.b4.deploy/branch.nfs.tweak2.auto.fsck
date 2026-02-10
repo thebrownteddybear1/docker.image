@@ -1,11 +1,10 @@
 #!/bin/bash
-# 1. INSTALLS & OS FIXES (Added CRON here)
+# 1. INSTALLS & OS FIXES
 apt-get update && apt-get install -y nfs-kernel-server xfsprogs nfs-common bc sysstat cron
 systemctl daemon-reload
 systemctl enable --now cron
-touch /forcefsck
 
-# 2. WIPE OLD GHOST CONFIGS (Prevent overwriting our 7GB limit)
+# 2. WIPE OLD GHOST CONFIGS
 rm -f /etc/sysctl.d/99-nfs-performance.conf
 rm -f /etc/sysctl.d/99-nfs-speed.conf
 rm -f /etc/sysctl.d/10-bufferbloat.conf
@@ -13,13 +12,18 @@ sed -i '/vm.dirty/d' /etc/sysctl.conf
 sed -i '/net.core/d' /etc/sysctl.conf
 sed -i '/net.ipv4/d' /etc/sysctl.conf
 
-# 3. NVMe TRIM & XFS REPAIR
+# 3. NVMe TRIM & ADAPTIVE XFS REPAIR (Only repairs if NOT in use)
 systemctl enable fstrim.timer && systemctl start fstrim.timer
 fstrim -av
-umount /dev/sdb /dev/sdc /dev/sdd 2>/dev/null
-xfs_repair -L /dev/sdb
-xfs_repair -L /dev/sdc
-xfs_repair -L /dev/sdd
+
+for dev in /dev/sdb /dev/sdc /dev/sdd; do
+    if ! mount | grep -q "$dev"; then
+        echo "Device $dev is NOT in use. Running xfs_repair..."
+        xfs_repair -L "$dev"
+    else
+        echo "Device $dev is currently in use. Skipping xfs_repair for safety."
+    fi
+done
 
 # 4. FSTAB & MOUNTING
 mkdir -pv /mnt/nfs1 /mnt/nfs2 /mnt/nfs3
@@ -31,16 +35,16 @@ echo "/mnt/nfs2 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 echo "/mnt/nfs3 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 exportfs -rav
 
-# 6. KERNEL SHIELD (7% WRITE SHIELD | 93% READ CACHE)
+# 6. KERNEL SHIELD (20GB WRITE SHIELD | 80GB READ CACHE)
 cat << 'EOF' > /etc/sysctl.d/99-nfs-golden.conf
 # Enable BBR
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
 
-# 7GB Write Shield (7% of 100GB)
-vm.dirty_ratio = 7
-vm.dirty_background_ratio = 3
-vm.dirty_expire_centisecs = 3000
+# 20GB Write Shield (20% of 100GB)
+vm.dirty_ratio = 20
+vm.dirty_background_ratio = 10
+vm.dirty_expire_centisecs = 500
 vm.dirty_writeback_centisecs = 100
 
 # High Latency Tuning (64MB Buffers)
@@ -57,26 +61,7 @@ kernel.numa_balancing = 0
 EOF
 sysctl -p /etc/sysctl.d/99-nfs-golden.conf
 
-# 7. AUTO-FLUSH SAFETY DAEMON (90GB TRIGGER)
+# 7. AUTO-FLUSH SAFETY DAEMON (70GB TRIGGER)
 cat << 'EOF' > /usr/local/bin/nfs_autoflush.sh
 #!/bin/bash
-CACHED_KB=$(grep -w "Cached:" /proc/meminfo | awk '{print $2}')
-if [ "$CACHED_KB" -gt 94371840 ]; then
-    echo "$(date) - Cache at 90GB+; Auto-Flushing..." >> /var/log/nfs_flush.log
-    sync; echo 3 > /proc/sys/vm/drop_caches
-fi
-EOF
-chmod +x /usr/local/bin/nfs_autoflush.sh
-touch /var/log/nfs_flush.log
-
-# Ensure Crontab is set
-(crontab -l 2>/dev/null | grep -v "nfs_autoflush"; echo "* * * * * /usr/local/bin/nfs_autoflush.sh") | crontab -
-
-# 8. FORCE 1024 THREADS & RESTART
-sed -i 's/^RPCNFSDCOUNT.*/RPCNFSDCOUNT=1024/' /etc/default/nfs-kernel-server || echo "RPCNFSDCOUNT=1024" >> /etc/default/nfs-kernel-server
-systemctl restart nfs-kernel-server
-
-echo "--- GOLDEN SETUP COMPLETE ---"
-sysctl vm.dirty_ratio
-sysctl net.ipv4.tcp_congestion_control
-crontab -l | grep nfs_autoflush
+# Trigger at 70GB (734003
