@@ -1,7 +1,8 @@
 cat << 'EOF' > a
 #!/bin/bash
 G='\033[0;32m'; Y='\033[1;33m'; R='\033[0;31m'; N='\033[0m'
-FLOG="/var/log/nfs_flush.log"; STATS="/tmp/nfs_stats"; CPU_STATE="/tmp/cpu_state"
+FLOG="/var/log/nfs_flush.log"; STATS="/tmp/nfs_stats"
+CPU_STATE="/tmp/cpu_state"; THR_STATE="/tmp/thr_state"
 
 # System Config (70GB / 4-CPU)
 TOTAL_RAM_GB=70
@@ -31,16 +32,36 @@ echo -e "   NFS MASTER DASHBOARD (${CPUS}-CPU | MTU: ${Y}${MTU}${N})"
 echo -e "   Interface: ${Y}${IFACE}${N} | Time: $(date)"
 echo -e "------------------------------------------------------------------"
 
-# --- NFSD THREAD UTILIZATION ---
-# Extracts configured threads and the 10 utilization buckets from /proc
+# --- NFSD THREAD UTILIZATION (Live Delta) ---
 THREADS=$(cat /proc/fs/nfsd/threads 2>/dev/null || echo "N/A")
-BUCKETS=$(grep "th" /proc/net/rpc/nfsd | awk '{print $3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
-echo -e "--- NFSD THREADS: ${Y}${THREADS}${N} (Utilization Buckets) ---"
-if [[ -n "$BUCKETS" ]]; then
-    read -a b_arr <<< "$BUCKETS"
-    # Labels for 10% increments
+raw_buckets=$(grep "th" /proc/net/rpc/nfsd | awk '{print $3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
+echo -e "--- NFSD THREADS: ${Y}${THREADS}${N} (Live % Utilization) ---"
+if [[ -n "$raw_buckets" ]]; then
+    read -a current_b <<< "$raw_buckets"
+    declare -a pct_b
+    if [[ -f "$THR_STATE" ]]; then
+        read -a prev_b < "$THR_STATE"
+        total_delta=0
+        for i in {0..9}; do
+            diff_val=$(echo "${current_b[$i]} - ${prev_b[$i]}" | bc)
+            diff_b[$i]=$diff_val
+            total_delta=$((total_delta + diff_val))
+        done
+        for i in {0..9}; do
+            if [ "$total_delta" -gt 0 ]; then
+                pct_b[$i]=$(echo "scale=1; 100 * ${diff_b[$i]} / $total_delta" | bc -l)
+            else
+                pct_b[$i]="0.0"
+            fi
+        done
+    else
+        for i in {0..9}; do pct_b[$i]="0.0"; done
+    fi
+    echo "$raw_buckets" > "$THR_STATE"
     printf "   0-10%%  11-20%% 21-30%% 31-40%% 41-50%% 51-60%% 61-70%% 71-80%% 81-90%% 91-100%%\n"
-    printf "   %-6s %-6s %-6s %-6s %-6s %-6s %-6s %-6s %-6s %-6s\n" "${b_arr[0]}" "${b_arr[1]}" "${b_arr[2]}" "${b_arr[3]}" "${b_arr[4]}" "${b_arr[5]}" "${b_arr[6]}" "${b_arr[7]}" "${b_arr[8]}" "${b_arr[9]}"
+    # Color warning: red if high buckets are used
+    T_COL=$N; [[ $(echo "${pct_b[8]} > 0 || ${pct_b[9]} > 0" | bc -l) -eq 1 ]] && T_COL=$R
+    printf "   ${T_COL}%-6s %-6s %-6s %-6s %-6s %-6s %-6s %-6s %-6s %-6s${N}\n" "${pct_b[0]}%" "${pct_b[1]}%" "${pct_b[2]}%" "${pct_b[3]}%" "${pct_b[4]}%" "${pct_b[5]}%" "${pct_b[6]}%" "${pct_b[7]}%" "${pct_b[8]}%" "${pct_b[9]}%"
 fi
 echo -e "------------------------------------------------------------------"
 
