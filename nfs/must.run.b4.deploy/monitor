@@ -1,7 +1,8 @@
 cat << 'EOF' > /root/a
 #!/bin/bash
 G='\033[0;32m'; Y='\033[1;33m'; R='\033[0;31m'; N='\033[0m'; B='\033[1;34m'
-STATS="/tmp/nfs_stats"; C_STATS="/tmp/client_io_cache"; D_STATS="/tmp/disk_stats"
+STATS="/tmp/nfs_stats"; C_STATS="/tmp/client_io_cache"; D_STATS="/tmp/disk_stats"; PEAK_FILE="/tmp/nfs_peak"
+FLUSH_LOG="/var/log/nfs_flush.log"
 
 # --- DYNAMIC DETECTION ---
 TOTAL_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
@@ -16,7 +17,7 @@ W_LIMIT_GB=$(echo "scale=2; $W_LIMIT_BYTES / 1024 / 1024 / 1024" | bc -l)
 IFACE=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $5}' | head -n1)
 [[ -z "$IFACE" ]] && IFACE="ens34"
 
-# --- THROUGHPUT CALC (kbps) ---
+# --- THROUGHPUT CALC ---
 curr_rx=$(cat /sys/class/net/$IFACE/statistics/rx_bytes); curr_tx=$(cat /sys/class/net/$IFACE/statistics/tx_bytes); curr_time=$(date +%s.%N)
 if [ -f "$STATS" ]; then
     read prev_rx prev_tx prev_time < "$STATS"
@@ -26,7 +27,7 @@ if [ -f "$STATS" ]; then
 else TOT_RX="0"; TOT_TX="0"; t_diff=1; fi
 echo "$curr_rx $curr_tx $curr_time" > "$STATS"
 
-# --- DISK WRITE CALC (kbps) ---
+# --- DISK WRITE CALC ---
 curr_disk_w=$(awk '{sum+=$7} END {print sum}' /proc/diskstats)
 if [ -f "$D_STATS" ]; then
     read prev_disk_w < "$D_STATS"
@@ -34,11 +35,28 @@ if [ -f "$D_STATS" ]; then
 else DISK_W_KBPS="0"; fi
 echo "$curr_disk_w" > "$D_STATS"
 
+# Peak Tracking
+[[ ! -f "$PEAK_FILE" ]] && echo "0" > "$PEAK_FILE"
+PEAK_W=$(cat "$PEAK_FILE")
+if (( $(echo "$DISK_W_KBPS > $PEAK_W" | bc -l) )); then
+    echo "$DISK_W_KBPS" > "$PEAK_FILE"
+    PEAK_W=$DISK_W_KBPS
+fi
+
+# --- LOG ANALYSIS ---
+if [ -f "$FLUSH_LOG" ]; then
+    today=$(date "+%b %d")
+    read_flushes=$(grep "$today" "$FLUSH_LOG" | grep -c "Read Cache hit")
+    write_flushes=$(grep "$today" "$FLUSH_LOG" | grep -c "Triggering Flush")
+    last_flush=$(tail -n 1 "$FLUSH_LOG" | awk '{print $4}')
+else
+    read_flushes=0; write_flushes=0; last_flush="NONE"
+fi
+
 clear
 echo -e "${B}==========================================================================================${N}"
-echo -e "   NFS MASTER DASHBOARD (HIGH PRECISION) | MTU: 9000 | $(date +%H:%M:%S)"
+echo -e "   NFS MASTER DASHBOARD (DYNAMIC) | MTU: 9000 | $(date +%H:%M:%S)"
 echo -e "------------------------------------------------------------------------------------------"
-# CPU
 NFSD_MAP=$(ps -eLo psr,comm | grep nfsd | awk '{count[$1]++} END {for (p in count) print p, count[p]}')
 for i in {0..3}; do
     core_th=$(echo "$NFSD_MAP" | awk -v c="$i" '$1==c {print $2}')
@@ -61,21 +79,25 @@ while read -r line; do
 done < <(ss -ntip sport = :2049 | awk '/ESTAB/ {ip=$5; split(ip,a,":"); client=a[1]} /mss:/ {match($0, /mss:[0-9]+/); m=substr($0, RSTART+4, RLENGTH-4); match($0, /bytes_received:[0-9]+/); r=substr($0, RSTART+15, RLENGTH-15); match($0, /bytes_acked:[0-9]+/); t=substr($0, RSTART+12, RLENGTH-12); print client, r, t, m}')
 echo -ne "$new_c_stats" > "$C_STATS"
 
-# Storage Metrics 
 echo -e "------------------------------------------------------------------------------------------"
 dirty_raw_kb=$(grep "Dirty:" /proc/meminfo | awk '{print $2}')
 dirty_kbits=$(( dirty_raw_kb * 8 ))
-# High Precision REMAINING % (No rounding)
 dirty_rem_pct=$(echo "scale=4; 100 - ($dirty_raw_kb / $W_LIMIT_KB * 100)" | bc -l)
-
 cached_raw_kb=$(grep -w "Cached:" /proc/meminfo | awk '{print $2}')
 cached_kbits=$(echo "$cached_raw_kb * 8" | bc)
-# High Precision REMAINING % (No rounding)
 pool_rem_pct=$(echo "scale=4; 100 - ($cached_raw_kb / $POOL_KB * 100)" | bc -l)
+flush_timer=$(( 30 - ($(awk '{print int($1)}' /proc/uptime) % 30) ))
 
-printf "1. WRITE SHIELD : %-12s kb | %-5s GB | REMAINING: ${G}%-8s%%${N}\n" "$dirty_kbits" "$W_LIMIT_GB" "$dirty_rem_pct"
-printf "2. CACHE POOL   : %-12s kb | %-5s GB | REMAINING: ${G}%-8s%%${N}\n" "$cached_kbits" "$POOL_GB" "$pool_rem_pct"
+get_color() {
+    if (( $(echo "$1 > 50" | bc -l) )); then echo -e "$G"; elif (( $(echo "$1 > 20" | bc -l) )); then echo -e "$Y"; else echo -e "$R"; fi
+}
+D_COL=$(get_color $dirty_rem_pct); P_COL=$(get_color $pool_rem_pct)
+
+printf "1. WRITE SHIELD : %-12s kb | %-5s GB | REMAINING: %b%-9s%%%b | FLUSH: %ss\n" "$dirty_kbits" "$W_LIMIT_GB" "$D_COL" "$dirty_rem_pct" "$N" "$flush_timer"
+printf "2. CACHE POOL   : %-12s kb | %-5s GB | REMAINING: %b%-9s%%%b\n" "$cached_kbits" "$POOL_GB" "$P_COL" "$pool_rem_pct" "$N"
 printf "DISK WRITE: ${Y}%-12s${N} kbps | TOTAL RX: %-10s kbps | TOTAL TX: %-10s kbps\n" "${DISK_W_KBPS:-0}" "$TOT_RX" "$TOT_TX"
+echo -e "------------------------------------------------------------------------------------------"
+echo -e "   PEAK DISK W: ${Y}${PEAK_W}${N} kbps | AUTO-FLUSHES (POOL: $read_flushes | SHIELD: $write_flushes) | LAST: $last_flush"
 echo -e "${B}==========================================================================================${N}"
 EOF
 chmod +x /root/a
