@@ -1,32 +1,109 @@
-root@nfsserver:~# bash a
-==================================================================
-   NFS MASTER DASHBOARD (8-CPU | MTU: 9000)
-   Interface: ens34 | Time: Tue Feb 10 20:11:04 UTC 2026
-------------------------------------------------------------------
---- PER-CPU CORE LOADING ---
-  cpu0  [                    ]   4.0%
-  cpu1  [                    ]   4.1%
-  cpu2  [                    ]   4.5%
-  cpu3  [                    ]   4.2%
-  cpu4  [                    ]   3.7%
-  cpu5  [                    ]   3.7%
-  cpu6  [                    ]   4.4%
-  cpu7  [                    ]   4.3%
-------------------------------------------------------------------
---- AUTO-FLUSH SAFETY (70GB TRIGGER) ---
-   Status: MONITORING | Total Safety Flushes: 0
-0
-------------------------------------------------------------------
---- LIVE NETWORK THROUGHPUT ---
-   INCOMING (RX) : .61 MB/s
-   OUTGOING (TX) : .02 MB/s
-------------------------------------------------------------------
---- LIVE CLIENT METRICS ---
-   192.168.50.70   | TCP:   0.34ms | PING: 0.334ms | CWND:30  | BBR
-   192.168.50.71   | TCP:  0.245ms | PING: 0.276ms | CWND:34  | BBR
-------------------------------------------------------------------
-1. RAM SHIELD (WRITE) : 0.12 GB / 20.00 GB
-2. READ CACHE (READ)  : 31.22 GB / 80.00 GB [39%]
-   Cache Fill Level   : [#######-------------] (Flush at 70GB)
-3. TRAFFIC TO NVMe    : 17.91 MB/s
-==================================================================
+cat << 'EOF' > a
+#!/bin/bash
+G='\033[0;32m'; Y='\033[1;33m'; R='\033[0;31m'; N='\033[0m'
+FLOG="/var/log/nfs_flush.log"; STATS="/tmp/nfs_stats"; CPU_STATE="/tmp/cpu_state"
+
+# System Config (70GB / 4-CPU)
+TOTAL_RAM_GB=70
+W_LIMIT_GB=20; R_LIMIT_GB=70; F_TRIGGER=65; CPUS=4
+
+# Detect Interface
+IFACE=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $5}' | head -n1)
+[[ -z "$IFACE" ]] && IFACE="ens34"
+MTU=$(cat /sys/class/net/$IFACE/mtu 2>/dev/null || echo "9000")
+
+# --- INSTANT NETWORK THROUGHPUT ---
+curr_rx=$(cat /sys/class/net/$IFACE/statistics/rx_bytes); curr_tx=$(cat /sys/class/net/$IFACE/statistics/tx_bytes); curr_time=$(date +%s.%N)
+if [ -f "$STATS" ]; then
+    read prev_rx prev_tx prev_time < "$STATS"
+    time_diff=$(echo "$curr_time - $prev_time" | bc -l)
+    IN_MBps=$(echo "scale=2; ($curr_rx - $prev_rx) / $time_diff / 1024 / 1024" | bc -l)
+    OUT_MBps=$(echo "scale=2; ($curr_tx - $prev_tx) / $time_diff / 1024 / 1024" | bc -l)
+    IN_Gbps=$(echo "scale=2; (($curr_rx - $prev_rx) * 8) / $time_diff / 1000000000" | bc -l)
+    OUT_Gbps=$(echo "scale=2; (($curr_tx - $prev_tx) * 8) / $time_diff / 1000000000" | bc -l)
+else
+    IN_MBps="0.00"; OUT_MBps="0.00"; IN_Gbps="0.00"; OUT_Gbps="0.00"
+fi
+echo "$curr_rx $curr_tx $curr_time" > "$STATS"
+
+echo -e "=================================================================="
+echo -e "   NFS MASTER DASHBOARD (${CPUS}-CPU | MTU: ${Y}${MTU}${N})"
+echo -e "   Interface: ${Y}${IFACE}${N} | Time: $(date)"
+echo -e "------------------------------------------------------------------"
+
+# --- NFSD THREAD UTILIZATION ---
+# Extracts configured threads and the 10 utilization buckets from /proc
+THREADS=$(cat /proc/fs/nfsd/threads 2>/dev/null || echo "N/A")
+BUCKETS=$(grep "th" /proc/net/rpc/nfsd | awk '{print $3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
+echo -e "--- NFSD THREADS: ${Y}${THREADS}${N} (Utilization Buckets) ---"
+if [[ -n "$BUCKETS" ]]; then
+    read -a b_arr <<< "$BUCKETS"
+    # Labels for 10% increments
+    printf "   0-10%%  11-20%% 21-30%% 31-40%% 41-50%% 51-60%% 61-70%% 71-80%% 81-90%% 91-100%%\n"
+    printf "   %-6s %-6s %-6s %-6s %-6s %-6s %-6s %-6s %-6s %-6s\n" "${b_arr[0]}" "${b_arr[1]}" "${b_arr[2]}" "${b_arr[3]}" "${b_arr[4]}" "${b_arr[5]}" "${b_arr[6]}" "${b_arr[7]}" "${b_arr[8]}" "${b_arr[9]}"
+fi
+echo -e "------------------------------------------------------------------"
+
+# --- PER-CPU CORE LOADING ---
+echo -e "--- PER-CPU CORE LOADING ---"
+declare -A prev_idle prev_total
+[[ -f "$CPU_STATE" ]] && while read -r cid pi pt; do [[ -n "$cid" ]] && { prev_idle["$cid"]=$pi; prev_total["$cid"]=$pt; }; done < "$CPU_STATE"
+new_state=""
+for i in $(seq 0 $((CPUS-1))); do
+    cpu_id="cpu$i"; line=$(grep "^$cpu_id " /proc/stat); read -a ticks <<< "${line#* }"
+    total=0; for x in "${ticks[@]}"; do total=$((total + x)); done
+    idle=${ticks[3]}; new_state+="$cpu_id $idle $total\n"
+    if [[ -n ${prev_total[$cpu_id]} ]]; then
+        diff_total=$((total - prev_total[$cpu_id]))
+        diff_idle=$((idle - prev_idle[$cpu_id]))
+        [[ $diff_total -eq 0 ]] && usage=0 || usage=$(echo "scale=1; 100 * ($diff_total - $diff_idle) / $diff_total" | bc -l)
+    else usage="0.0"; fi
+    val=$(echo "$usage / 5" | bc 2>/dev/null || echo 0); bar=$(printf "%${val}s" | tr ' ' '#')
+    printf "  %-5s [%b%-20s%b] %5.1f%%\n" "$cpu_id" "$G" "$bar" "$N" "$usage"
+done
+echo -e "$new_state" > "$CPU_STATE"
+echo -e "------------------------------------------------------------------"
+
+# --- AUTO-FLUSH SAFETY ---
+FLUSH_COUNT=$(grep -c "Read Cache hit 70GB" "$FLOG" 2>/dev/null || echo 0)
+echo -e "--- AUTO-FLUSH SAFETY (${F_TRIGGER}GB TRIGGER) ---"
+echo -e "   Status: ${G}MONITORING${N} | Total Safety Flushes: ${Y}${FLUSH_COUNT}${N}"
+echo -e "------------------------------------------------------------------"
+
+# --- LIVE NETWORK THROUGHPUT ---
+echo -e "--- LIVE NETWORK THROUGHPUT ---"
+printf "   INCOMING (RX) : ${G}%0.2f MB/s${N} (%0.2f Gbps)\n" "${IN_MBps}" "${IN_Gbps}"
+printf "   OUTGOING (TX) : ${G}%0.2f MB/s${N} (%0.2f Gbps)\n" "${OUT_MBps}" "${OUT_Gbps}"
+echo -e "------------------------------------------------------------------"
+
+# --- LIVE CLIENT METRICS ---
+echo -e "--- LIVE CLIENT METRICS ---"
+ss -tin sport = :2049 | awk '/ESTAB/ {split($5,a,":"); print a[1]}' | sort -u | while read ip; do
+    [[ -z "$ip" ]] && continue
+    tcp_stats=$(ss -tin dst "$ip" | awk '/rtt:/ {
+        match($0, /rtt:[0-9.]+/); r=substr($0, RSTART+4, RLENGTH-4);
+        match($0, /cwnd:[0-9]+/); c=substr($0, RSTART+5, RLENGTH-5);
+        a="CUBIC"; if($0 ~ /bbr/) a="BBR";
+        print r, c, a
+    }' | head -n 1)
+    ping_val=$(ping -c 1 -W 1 "$ip" | sed -n 's/.*time=\([0-9.]*\) ms/\1/p')
+    read rtt cwnd algo <<< "$tcp_stats"
+    C_COL=$G; [[ $(echo "${rtt:-0} > 50" | bc -l) -eq 1 ]] && C_COL=$Y
+    printf "   %-15s | TCP:%b%7s%bms | PING:%6sms | CWND:%-3s | %b%s%b\n" "$ip" "$C_COL" "$rtt" "$N" "$ping_val" "$cwnd" "$G" "$algo" "$N"
+done
+echo -e "------------------------------------------------------------------"
+
+# --- STORAGE & RAM ---
+dirty=$(grep "Dirty:" /proc/meminfo | awk '{printf "%.2f", $2/1048576}')
+cached=$(grep -w "Cached:" /proc/meminfo | awk '{printf "%.2f", $2/1048576}')
+read_pct=$(echo "scale=0; ($cached * 100) / $R_LIMIT_GB" | bc -l)
+[[ $read_pct -gt 100 ]] && read_pct=100
+bar_len=$((read_pct / 5)); bar=$(printf "%${bar_len}s" | tr ' ' '#'); empty=$(printf "%$((20 - bar_len))s" | tr ' ' '-')
+DISK_MBps=$(iostat -d -m 1 1 | grep -E "sd[b-d]" | awk '{sum+=$4} END {printf "%.2f", sum}')
+
+echo -e "1. RAM SHIELD (WRITE) : ${G}$dirty GB${N} / ${W_LIMIT_GB}.00 GB"
+echo -e "2. READ CACHE (READ)  : ${G}$cached GB${N} / ${R_LIMIT_GB}.00 GB [${read_pct}%]"
+echo -e "   Cache Fill Level   : [${G}${bar}${N}${empty}] (Flush at ${F_TRIGGER}GB)"
+echo -e "3. TRAFFIC TO NVMe    : ${G}$DISK_MBps MB/s${N}"
+echo -e "=================================================================="
+EOF
