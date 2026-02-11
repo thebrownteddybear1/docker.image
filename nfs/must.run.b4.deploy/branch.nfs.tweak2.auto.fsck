@@ -1,27 +1,31 @@
 #!/bin/bash
+# =================================================================
+# NFS GOLDEN INSTALL v3.1 - 40GB RES / 100GB MAX OPTIMIZED
+# SYSTEM-WIDE CRONTAB SAFE VERSION
+# =================================================================
+
+# 0. IMMEDIATE PURGE 
+echo "Executing initial memory purge..."
+sync; echo 3 > /proc/sys/vm/drop_caches
+
 # 1. INSTALLS & OS FIXES
 apt-get update && apt-get install -y nfs-kernel-server xfsprogs nfs-common bc sysstat cron
-systemctl daemon-reload
 systemctl enable --now cron
 
 # 2. WIPE OLD GHOST CONFIGS
-rm -f /etc/sysctl.d/99-nfs-performance.conf
-rm -f /etc/sysctl.d/99-nfs-speed.conf
+rm -f /etc/sysctl.d/99-nfs-*.conf
 rm -f /etc/sysctl.d/10-bufferbloat.conf
 sed -i '/vm.dirty/d' /etc/sysctl.conf
 sed -i '/net.core/d' /etc/sysctl.conf
 sed -i '/net.ipv4/d' /etc/sysctl.conf
 
-# 3. NVMe TRIM & ADAPTIVE XFS REPAIR (Only repairs if NOT in use)
+# 3. NVMe TRIM & ADAPTIVE XFS REPAIR
 systemctl enable fstrim.timer && systemctl start fstrim.timer
 fstrim -av
 
 for dev in /dev/sdb /dev/sdc /dev/sdd; do
     if ! mount | grep -q "$dev"; then
-        echo "Device $dev is NOT in use. Running xfs_repair..."
         xfs_repair -L "$dev"
-    else
-        echo "Device $dev is currently in use. Skipping xfs_repair for safety."
     fi
 done
 
@@ -35,33 +39,49 @@ echo "/mnt/nfs2 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 echo "/mnt/nfs3 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 exportfs -rav
 
-# 6. KERNEL SHIELD (20GB WRITE SHIELD | 80GB READ CACHE)
+# 6. KERNEL SHIELD (12GB WRITE SHIELD | 40GB RES PROTECTION)
 cat << 'EOF' > /etc/sysctl.d/99-nfs-golden.conf
-# Enable BBR
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
-
-# 20GB Write Shield (20% of 100GB)
-vm.dirty_ratio = 20
-vm.dirty_background_ratio = 10
+vm.dirty_ratio = 12
+vm.dirty_background_ratio = 6
 vm.dirty_expire_centisecs = 500
 vm.dirty_writeback_centisecs = 100
-
-# High Latency Tuning (64MB Buffers)
 net.core.rmem_max = 67108864
 net.core.wmem_max = 67108864
 net.ipv4.tcp_rmem = 4096 87380 67108864
 net.ipv4.tcp_wmem = 4096 65536 67108864
-
-# Read Cache Priority
-vm.vfs_cache_pressure = 1
+vm.vfs_cache_pressure = 10
 vm.swappiness = 1
 vm.min_free_kbytes = 1048576
 kernel.numa_balancing = 0
 EOF
 sysctl -p /etc/sysctl.d/99-nfs-golden.conf
 
-# 7. AUTO-FLUSH SAFETY DAEMON (70GB TRIGGER)
-cat << 'EOF' > /usr/local/bin/nfs_autoflush.sh
+# 7. CREATE THE OPTIMIZED FLUSH SCRIPT
+# Location matches your crontab view: /root/nfsflush.crontab.sh
+cat << 'EOF' > /root/nfsflush.crontab.sh
 #!/bin/bash
-# Trigger at 70GB (734003
+# Trigger at 14.4GB (15099494 KB) to protect 40GB Reservation
+TRIGGER_KB=15099494
+CURRENT_CACHED=$(grep -w "Cached:" /proc/meminfo | awk '{print $2}')
+
+if [ "$CURRENT_CACHED" -gt "$TRIGGER_KB" ]; then
+    echo "$(date) - Triggering Flush: $CURRENT_CACHED KB exceeds 14.4GB" >> /var/log/nfs_flush.log
+    sync; echo 3 > /proc/sys/vm/drop_caches
+fi
+EOF
+chmod +x /root/nfsflush.crontab.sh
+
+# 8. SAFE CRONTAB APPEND
+# Check if the job already exists in /etc/crontab to avoid duplicates
+if ! grep -q "nfsflush.crontab.sh" /etc/crontab; then
+    echo "Adding flush job to /etc/crontab..."
+    echo "*/1 * * * * root /bin/bash /root/nfsflush.crontab.sh > /dev/null 2>&1" >> /etc/crontab
+else
+    echo "Flush job already exists in /etc/crontab. Updating frequency to 1 minute..."
+    sed -i 's|.*/10 .*nfsflush.crontab.sh|*/1 * * * * root /bin/bash /root/nfsflush.crontab.sh|' /etc/crontab
+fi
+
+systemctl restart cron
+echo "NFS Golden Install Complete. System crontab preserved and updated."
