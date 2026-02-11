@@ -38,8 +38,6 @@ ACTIVE_DATA=$(ps -C nfsd -o pid,user,%cpu,psr,command --sort=-%cpu | awk '$3 > 0
 ACTIVE_COUNT=$(echo "$ACTIVE_DATA" | grep -c "nfsd")
 
 echo -e "--- NFSD THREAD ACTIVITY: ${G}${ACTIVE_COUNT}${N} / ${THREADS_TOTAL} Active ---"
-
-# Count workers per CPU (Starting from 0)
 core_counts=$(echo "$ACTIVE_DATA" | grep "nfsd" | awk '{print $4}' | sort | uniq -c)
 cpu_summary=""
 for i in $(seq 0 $((CPUS-1))); do
@@ -99,13 +97,17 @@ ss -tin sport = :2049 | awk '/ESTAB/ {split($5,a,":"); print a[1]}' | sort -u | 
     tcp_stats=$(ss -tin dst "$ip" | awk '/rtt:/ {
         match($0, /rtt:[0-9.]+/); r=substr($0, RSTART+4, RLENGTH-4);
         match($0, /cwnd:[0-9]+/); c=substr($0, RSTART+5, RLENGTH-5);
+        match($0, /mss:[0-9]+/); m=substr($0, RSTART+4, RLENGTH-4);
         a="CUBIC"; if($0 ~ /bbr/) a="BBR";
-        print r, c, a
+        print r, c, m, a
     }' | head -n 1)
     ping_val=$(ping -c 1 -W 1 "$ip" | sed -n 's/.*time=\([0-9.]*\) ms/\1/p')
-    read rtt cwnd algo <<< "$tcp_stats"
-    C_COL=$G; [[ $(echo "${rtt:-0} > 50" | bc -l) -eq 1 ]] && C_COL=$Y
-    printf "   %-15s | TCP:%b%7s%bms | PING:%6sms | CWND:%-3s | %b%s%b\n" "$ip" "$C_COL" "$rtt" "$N" "$ping_val" "$cwnd" "$G" "$algo" "$N"
+    read rtt cwnd mss algo <<< "$tcp_stats"
+    
+    # Check if MSS is healthy for MTU 9000 (usually 8960 or similar)
+    M_COL=$G; [[ -n "$mss" && "$mss" -lt 8000 ]] && M_COL=$R
+    
+    printf "   %-14s | TCP:%6sms | PING:%6sms | MSS:%b%-5s%b | CWND:%-3s | %s\n" "$ip" "$rtt" "$ping_val" "$M_COL" "$mss" "$N" "$cwnd" "$algo"
 done
 echo -e "------------------------------------------------------------------"
 
