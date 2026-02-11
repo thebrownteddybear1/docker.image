@@ -1,7 +1,7 @@
 #!/bin/bash
 # =================================================================
-# NFS GOLDEN INSTALL v3.1 - 40GB RES / 100GB MAX OPTIMIZED
-# SYSTEM-WIDE CRONTAB SAFE VERSION
+# NFS GOLDEN INSTALL v4.2 - ELASTIC 60% RES / 20GB WRITE LOCK
+# AUTO-CALCULATES BASED ON INSTALLED RAM
 # =================================================================
 
 # 0. IMMEDIATE PURGE 
@@ -14,10 +14,8 @@ systemctl enable --now cron
 
 # 2. WIPE OLD GHOST CONFIGS
 rm -f /etc/sysctl.d/99-nfs-*.conf
-rm -f /etc/sysctl.d/10-bufferbloat.conf
 sed -i '/vm.dirty/d' /etc/sysctl.conf
-sed -i '/net.core/d' /etc/sysctl.conf
-sed -i '/net.ipv4/d' /etc/sysctl.conf
+sed -i '/vm.min_free_kbytes/d' /etc/sysctl.conf
 
 # 3. NVMe TRIM & ADAPTIVE XFS REPAIR
 systemctl enable fstrim.timer && systemctl start fstrim.timer
@@ -39,49 +37,57 @@ echo "/mnt/nfs2 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 echo "/mnt/nfs3 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 exportfs -rav
 
-# 6. KERNEL SHIELD (12GB WRITE SHIELD | 40GB RES PROTECTION)
-cat << 'EOF' > /etc/sysctl.d/99-nfs-golden.conf
+# 6. DYNAMIC KERNEL SHIELD CALCULATION
+# Calculate 60% of Total RAM in KB
+TOTAL_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+RESERVE_KB=$(echo "$TOTAL_KB * 0.60" | bc | cut -d. -f1)
+
+cat << EOF > /etc/sysctl.d/99-nfs-golden.conf
+# Network Optimization
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
-vm.dirty_ratio = 12
-vm.dirty_background_ratio = 6
-vm.dirty_expire_centisecs = 500
-vm.dirty_writeback_centisecs = 100
 net.core.rmem_max = 67108864
 net.core.wmem_max = 67108864
 net.ipv4.tcp_rmem = 4096 87380 67108864
 net.ipv4.tcp_wmem = 4096 65536 67108864
+
+# SYSTEM RESERVATION (Elastic 60% - Currently ${RESERVE_KB} KB)
+vm.min_free_kbytes = $RESERVE_KB
 vm.vfs_cache_pressure = 10
 vm.swappiness = 1
-vm.min_free_kbytes = 1048576
 kernel.numa_balancing = 0
+
+# WRITE SHIELD (Hard Locked at 20GB in Bytes)
+vm.dirty_bytes = 21474836480
+vm.dirty_background_bytes = 10737418240
+vm.dirty_expire_centisecs = 3000
+vm.dirty_writeback_centisecs = 100
 EOF
+
 sysctl -p /etc/sysctl.d/99-nfs-golden.conf
 
-# 7. CREATE THE OPTIMIZED FLUSH SCRIPT
-# Location matches your crontab view: /root/nfsflush.crontab.sh
+# 7. CREATE THE ELASTIC FLUSH SCRIPT
+# Triggers flush when cache exceeds 90% of the available (non-reserved) pool
 cat << 'EOF' > /root/nfsflush.crontab.sh
 #!/bin/bash
-# Trigger at 14.4GB (15099494 KB) to protect 40GB Reservation
-TRIGGER_KB=15099494
+TOTAL_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+RESERVE_KB=$(cat /proc/sys/vm/min_free_kbytes)
+POOL_KB=$(( TOTAL_KB - RESERVE_KB ))
+TRIGGER_KB=$(echo "$POOL_KB * 0.90" | bc | cut -d. -f1)
+
 CURRENT_CACHED=$(grep -w "Cached:" /proc/meminfo | awk '{print $2}')
 
 if [ "$CURRENT_CACHED" -gt "$TRIGGER_KB" ]; then
-    echo "$(date) - Triggering Flush: $CURRENT_CACHED KB exceeds 14.4GB" >> /var/log/nfs_flush.log
+    echo "$(date) - Pool Saturated: $CURRENT_CACHED KB. Flushing..." >> /var/log/nfs_flush.log
     sync; echo 3 > /proc/sys/vm/drop_caches
 fi
 EOF
 chmod +x /root/nfsflush.crontab.sh
 
 # 8. SAFE CRONTAB APPEND
-# Check if the job already exists in /etc/crontab to avoid duplicates
 if ! grep -q "nfsflush.crontab.sh" /etc/crontab; then
-    echo "Adding flush job to /etc/crontab..."
     echo "*/1 * * * * root /bin/bash /root/nfsflush.crontab.sh > /dev/null 2>&1" >> /etc/crontab
-else
-    echo "Flush job already exists in /etc/crontab. Updating frequency to 1 minute..."
-    sed -i 's|.*/10 .*nfsflush.crontab.sh|*/1 * * * * root /bin/bash /root/nfsflush.crontab.sh|' /etc/crontab
 fi
 
 systemctl restart cron
-echo "NFS Golden Install Complete. System crontab preserved and updated."
+echo "NFS Golden Install Complete. Elastic 60% Res + 20GB Write Lock applied."
