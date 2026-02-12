@@ -1,3 +1,5 @@
+
+
 #vmotion
 #192.168.51.1-0
 #nfs
@@ -24,6 +26,8 @@
 
 192.168.50.19 esx19.corp.internal
 
+#installer
+192.168.50.20 sddc20.corp.internal
 
 # offline depot
 192.168.50.53 depot.corp.internal
