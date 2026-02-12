@@ -1,3 +1,0 @@
-cp Dockerfile.vcf9 Dockerfile
-docker build --network=host -t vcf9 .
-docker run -d -name vcf9 -p 443:443 --privileged vcf9:latest
