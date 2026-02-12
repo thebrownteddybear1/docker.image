@@ -48,6 +48,15 @@ RUN printf 'server {\n\
 RUN mkdir -p /root/downloadtool
 
 # Copy the compressed file
+#################################################################
+#################################################################
+# in the container, 
+# login to vpn using /root/tonjia/vcf9/offlinedepot/4vpn
+# go to /root/downloadtool
+# run the pwsh --file DownloadToken.ps1 to the token
+# replace the token inside edit.me.add.token.downloadtool.sh and run it
+#################################################################
+#################################################################
 COPY vcf-download-tool-9.0.2.0.25151284.tar.gz /root/downloadtool/
 
 # Extraction and Configuration Update (Fixed Syntax)
