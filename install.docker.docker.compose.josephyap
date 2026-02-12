@@ -27,6 +27,6 @@ echo "Checking Docker version..."
 docker --version
 echo "Checking Docker Compose version..."
 docker compose version
-apt update ;apt install -y gh
+apt update ;apt install -y gh bash-completion
 gh auth login
 gh repo clone thebrownteddybear1/docker.image
