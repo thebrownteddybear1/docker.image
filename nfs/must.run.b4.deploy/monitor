@@ -1,3 +1,9 @@
+#!/bin/bash
+# =================================================================
+# NFS MASTER DASHBOARD (DYNAMIC) | MTU: 9000
+# Updated for 2-CPU Configuration (Auto-Detecting Cores)
+# =================================================================
+
 cat << 'EOF' > /root/a
 #!/bin/bash
 G='\033[0;32m'; Y='\033[1;33m'; R='\033[0;31m'; N='\033[0m'; B='\033[1;34m'
@@ -5,6 +11,8 @@ STATS="/tmp/nfs_stats"; C_STATS="/tmp/client_io_cache"; D_STATS="/tmp/disk_stats
 FLUSH_LOG="/var/log/nfs_flush.log"
 
 # --- DYNAMIC DETECTION ---
+# Detect actual CPU count to prevent empty core reports
+CPU_COUNT=$(nproc)
 TOTAL_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 RESERVE_KB=$(cat /proc/sys/vm/min_free_kbytes)
 POOL_KB=$(( TOTAL_KB - RESERVE_KB ))
@@ -58,9 +66,10 @@ echo -e "${B}===================================================================
 echo -e "   NFS MASTER DASHBOARD (DYNAMIC) | MTU: 9000 | $(date +%H:%M:%S)"
 echo -e "------------------------------------------------------------------------------------------"
 NFSD_MAP=$(ps -eLo psr,comm | grep nfsd | awk '{count[$1]++} END {for (p in count) print p, count[p]}')
-for i in {0..3}; do
+# Modified loop to use CPU_COUNT (nproc)
+for (( i=0; i<$CPU_COUNT; i++ )); do
     core_th=$(echo "$NFSD_MAP" | awk -v c="$i" '$1==c {print $2}')
-    printf "  Core %-4s : %-4s nfsd threads\n" "$i" "${core_th:-0}"
+    printf "   Core %-4s : %-4s nfsd threads\n" "$i" "${core_th:-0}"
 done
 echo -e "------------------------------------------------------------------------------------------"
 printf "   %-15s | %-5s | %-18s | %-18s\n" "CLIENT IP" "MSS" "RX (Write) kbps" "TX (Read) kbps"
