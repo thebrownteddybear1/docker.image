@@ -14,4 +14,4 @@ EXPOSE 53/udp
 EXPOSE 53/tcp
 
 # -k keeps dnsmasq in the foreground so the container doesn't exit
-ENTRYPOINT ["dnsmasq", "-k"]
+ENTRYPOINT ["dnsmasq", "-k", "--filter-AAAA", "--log-facility=-"]
