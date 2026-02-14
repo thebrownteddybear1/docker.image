@@ -8,10 +8,11 @@ RUN apt-get update && apt-get install -y \
     apt-transport-https ca-certificates curl gnupg lsb-release \
     tree nano openssh-server iproute2 iputils-ping net-tools \
     git gh ssh sudo bash-completion vim sshpass openssl \
-    tcpdump wget perl netplan.io frr dnsmasq gzip zip unzip \
+    tcpdump wget perl netplan.io gzip zip unzip \
     software-properties-common python3 python3-pip \
     python3-requests python3-aiohttp bash ansible \
-    nginx apache2-utils openconnect jq gettext-base  \
+    nginx apache2-utils openconnect jq gettext-base dnsutils \
+    
     && rm -rf /var/lib/apt/lists/*
 
 #### SECTION: DEPOT & NGINX CONFIGURATION ####
