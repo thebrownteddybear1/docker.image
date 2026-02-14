@@ -12,7 +12,6 @@ RUN apt-get update && apt-get install -y \
     software-properties-common python3 python3-pip \
     python3-requests python3-aiohttp bash ansible \
     nginx apache2-utils openconnect jq gettext-base dnsutils \
-    
     && rm -rf /var/lib/apt/lists/*
 
 #### SECTION: DEPOT & NGINX CONFIGURATION ####
