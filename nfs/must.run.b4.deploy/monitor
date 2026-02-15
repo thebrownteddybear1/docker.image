@@ -6,13 +6,13 @@ PEAK_FILE="/tmp/nfs_peak"
 # --- DYNAMIC DETECTION ---
 CPU_COUNT=$(nproc)
 TOTAL_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-W_LIMIT_BYTES=$(cat /proc/sys/vm/dirty_bytes)
-W_LIMIT_KB=$(( W_LIMIT_BYTES / 1024 ))
-W_LIMIT_GB=$(echo "scale=2; $W_LIMIT_KB / 1024 / 1024" | bc -l)
+TOTAL_GB=$(echo "scale=2; $TOTAL_KB / 1024 / 1024" | bc -l)
 
-# Read Cache Target: 90% of (Total - Write Shield)
-READ_TARGET_KB=$(echo "($TOTAL_KB - $W_LIMIT_KB) * 0.90" | bc -l | cut -d. -f1)
-READ_TARGET_GB=$(echo "scale=2; $READ_TARGET_KB / 1024 / 1024" | bc -l)
+# Kernel Settings
+D_RATIO=$(cat /proc/sys/vm/dirty_ratio)
+DB_RATIO=$(cat /proc/sys/vm/dirty_background_ratio)
+D_EXPIRE=$(cat /proc/sys/vm/dirty_expire_centisecs)
+D_WRITE=$(cat /proc/sys/vm/dirty_writeback_centisecs)
 
 IFACE=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $5}' | head -n1)
 [[ -z "$IFACE" ]] && IFACE="ens34"
@@ -45,15 +45,15 @@ fi
 
 clear
 echo -e "${B}==========================================================================================${N}"
-echo -e "   NFS MASTER DASHBOARD (DYNAMIC) | MTU: 9000 | $(date +%H:%M:%S)"
+echo -e "    NFS MASTER DASHBOARD (v5.7) | MTU: 9000 | $(date +%H:%M:%S)"
 echo -e "------------------------------------------------------------------------------------------"
 NFSD_MAP=$(ps -eLo psr,comm | grep nfsd | awk '{count[$1]++} END {for (p in count) print p, count[p]}')
 for (( i=0; i<$CPU_COUNT; i++ )); do
     core_th=$(echo "$NFSD_MAP" | awk -v c="$i" '$1==c {print $2}')
-    printf "   Core %-4s : %-4s nfsd threads\n" "$i" "${core_th:-0}"
+    printf "    Core %-4s : %-4s nfsd threads\n" "$i" "${core_th:-0}"
 done
 echo -e "------------------------------------------------------------------------------------------"
-printf "   %-15s | %-5s | %-18s | %-18s\n" "CLIENT IP" "MSS" "RX (Write) kbps" "TX (Read) kbps"
+printf "    %-15s | %-5s | %-18s | %-18s\n" "CLIENT IP" "MSS" "RX (Write) kbps" "TX (Read) kbps"
 echo -e "------------------------------------------------------------------------------------------"
 
 declare -A p_rx p_tx
@@ -67,31 +67,26 @@ while read -r ip mss crx ctx; do
         cl_rx=$(echo "scale=0; (($crx - ${p_rx[$ip]}) * 8 / $t_diff / 1000) / 1" | bc -l)
         cl_tx=$(echo "scale=0; (($ctx - ${p_tx[$ip]}) * 8 / $t_diff / 1000) / 1" | bc -l)
     else cl_rx="0"; cl_tx="0"; fi
-    printf "   %-15s | %-5s | %12s kbps     | %12s kbps\n" "$ip" "$mss" "${cl_rx:-0}" "${cl_tx:-0}"
+    printf "    %-15s | %-5s | %12s kbps     | %12s kbps\n" "$ip" "$mss" "${cl_rx:-0}" "${cl_tx:-0}"
 done < <(ss -ntip sport = :2049 | awk '/ESTAB/ {ip=$5; split(ip,a,":"); client=a[1]} /mss:/ {match($0, /mss:[0-9]+/); m=substr($0, RSTART+4, RLENGTH-4); match($0, /bytes_received:[0-9]+/); r=substr($0, RSTART+15, RLENGTH-15); match($0, /bytes_acked:[0-9]+/); t=substr($0, RSTART+12, RLENGTH-12); print client, m, r, t}')
 echo -ne "$new_c_stats" > "$C_TMP"
 
 echo -e "------------------------------------------------------------------------------------------"
-# --- MEMORY CALCULATIONS ---
+# --- MEMORY STATUS ---
 dirty_kb=$(grep "^Dirty:" /proc/meminfo | awk '{print $2}')
-dirty_rem_pct=$(echo "scale=2; 100 - ($dirty_kb / $W_LIMIT_KB * 100)" | bc -l)
-
 cached_kb=$(grep "^Cached:" /proc/meminfo | awk '{print $2}')
-actual_cache_kb=$(( cached_kb - dirty_kb ))
-actual_cache_gb=$(echo "scale=2; $actual_cache_kb / 1024 / 1024" | bc -l)
-pool_full_pct=$(echo "scale=2; ($actual_cache_kb / $READ_TARGET_KB) * 100" | bc -l)
+free_kb=$(grep "^MemFree:" /proc/meminfo | awk '{print $2}')
+util_pct=$(echo "scale=2; (($TOTAL_KB - $free_kb) / $TOTAL_KB) * 100" | bc -l)
+dirty_pct=$(echo "scale=2; ($dirty_kb / $TOTAL_KB) * 100" | bc -l)
 
-slab_kb=$(grep "^Slab:" /proc/meminfo | awk '{print $2}')
-stack_kb=$(grep "^KernelStack:" /proc/meminfo | awk '{print $2}')
-ptable_kb=$(grep "^PageTables:" /proc/meminfo | awk '{print $2}')
-kern_total_kb=$(( slab_kb + stack_kb + ptable_kb ))
-kern_total_gb=$(echo "scale=2; $kern_total_kb / 1024 / 1024" | bc -l)
-flush_timer=$(( 30 - ($(awk '{print int($1)}' /proc/uptime) % 30) ))
+# Logic: Countdown based on the 'Scan' interval (dirty_writeback_centisecs)
+scan_sec=$((D_WRITE / 100))
+flush_timer=$(( scan_sec - ($(awk '{print int($1)}' /proc/uptime) % scan_sec) ))
 
-printf "1. WRITE SHIELD : %-12s kb | MAX: %-7s GB | REMAINING: %-9s%% | FLUSH: %ss\n" "$((dirty_kb * 8))" "$W_LIMIT_GB" "$dirty_rem_pct" "$flush_timer"
-printf "2. CACHE POOL   : %-12s kb | %s GB used of %s GB | FULL: %s%%\n" "$((actual_cache_kb * 8))" "$actual_cache_gb" "$READ_TARGET_GB" "$pool_full_pct"
-printf "3. KERNEL CORE  : %-12s kb | %-7s GB | (Slab/Stack/Tables)\n" "$((kern_total_kb * 8))" "$kern_total_gb"
+printf "1. ELASTIC CACHE : %-12s kb | UTIL: %-8s%% | TOTAL RAM: %s GB\n" "$((cached_kb * 8))" "$util_pct" "$TOTAL_GB"
+printf "2. DIRTY SHIELD  : %-12s kb | FILL: %-8s%% | NEXT SCAN: %ss\n" "$((dirty_kb * 8))" "$dirty_pct" "$flush_timer"
 printf "DISK WRITE: ${Y}%-12s${N} kbps | TOTAL RX: %-10s kbps | TOTAL TX: %-10s kbps\n" "${DISK_W_KBPS:-0}" "$TOT_RX" "$TOT_TX"
 echo -e "------------------------------------------------------------------------------------------"
-echo -e "   PEAK DISK W: ${Y}${PEAK_W}${N} kbps | MEM: 30GB | PINNED: NUMA 0 | FREE: $(free -h | awk '/Mem:/ {print $7}')"
+echo -e "    ${G}KERNEL TUNING:${N} Ratio: ${DB_RATIO}%/${D_RATIO}% | Hold: $((D_EXPIRE/100))s | Scan: ${scan_sec}s"
+echo -e "    PEAK DISK W: ${Y}${PEAK_W}${N} kbps | FREE: $(free -h | awk '/Mem:/ {print $7}')"
 echo -e "${B}==========================================================================================${N}"
