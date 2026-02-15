@@ -1,6 +1,6 @@
 #!/bin/bash
 # =================================================================
-# NFS GOLDEN INSTALL v5.0 - ELASTIC 60% RES / 20GB WRITE LOCK
+# NFS GOLDEN INSTALL v5.2 - ELASTIC 60% RES / 20GB OPTIMIZED CACHE
 # MTU 9000 AUTO-CONFIG + INTEGRATED HEALTH CHECK
 # =================================================================
 
@@ -9,10 +9,8 @@ echo "Executing initial memory purge..."
 sync; echo 3 > /proc/sys/vm/drop_caches
 
 # 1. NETWORK OPTIMIZATION (MTU 9000)
-# Inserts mtu: 9000 specifically above the 'addresses:' line for ens34
 if [ -f /etc/netplan/50-cloud-init.yaml ]; then
     echo "Updating Netplan for Jumbo Frames (MTU 9000)..."
-    # Remove existing mtu lines to avoid duplicates, then add fresh
     sed -i '/mtu:/d' /etc/netplan/50-cloud-init.yaml
     sed -i '/addresses:/i \      mtu: 9000' /etc/netplan/50-cloud-init.yaml
     netplan apply
@@ -22,12 +20,14 @@ fi
 apt-get update && apt-get install -y nfs-kernel-server xfsprogs nfs-common bc sysstat cron smartmontools nvme-cli
 systemctl enable --now cron
 
-# 3. WIPE OLD GHOST CONFIGS
+# 3. WIPE OLD GHOST CONFIGS & PREVIOUS FLUSH SCRIPTS
 rm -f /etc/sysctl.d/99-nfs-*.conf
+rm -f /root/nfsflush.crontab.sh
+sed -i '/nfsflush.crontab.sh/d' /etc/crontab
 sed -i '/vm.dirty/d' /etc/sysctl.conf
 sed -i '/vm.min_free_kbytes/d' /etc/sysctl.conf
 
-# 4. NVMe TRIM & ADAPTIVE XFS REPAIR (Offline only)
+# 4. NVMe TRIM & ADAPTIVE XFS REPAIR
 systemctl enable fstrim.timer && systemctl start fstrim.timer
 fstrim -av
 
@@ -47,7 +47,7 @@ echo "/mnt/nfs2 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 echo "/mnt/nfs3 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
 exportfs -rav
 
-# 7. DYNAMIC KERNEL SHIELD CALCULATION
+# 7. DYNAMIC KERNEL SHIELD & CACHE RATIO CALCULATION
 TOTAL_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 RESERVE_KB=$(echo "$TOTAL_KB * 0.60" | bc | cut -d. -f1)
 
@@ -66,16 +66,16 @@ vm.vfs_cache_pressure = 10
 vm.swappiness = 1
 kernel.numa_balancing = 0
 
-# WRITE SHIELD (Hard Locked at 20GB)
-vm.dirty_bytes = 21474836480
-vm.dirty_background_bytes = 10737418240
+# HIGH-UTILIZATION WRITE SHIELD (80% Background / 95% Hard Limit)
+vm.dirty_background_ratio = 80
+vm.dirty_ratio = 95
 vm.dirty_expire_centisecs = 3000
 vm.dirty_writeback_centisecs = 100
 EOF
 
 sysctl -p /etc/sysctl.d/99-nfs-golden.conf
 
-# 8. CREATE THE MASTER HEALTH CHECK (Manual Tool)
+# 8. MASTER HEALTH CHECK TOOL (Updated)
 cat << 'EOF' > /usr/local/bin/check_nfs.sh
 #!/bin/bash
 echo "--- Starting Deep Health Check: $(date) ---"
@@ -91,31 +91,10 @@ echo -e "\n[3/4] Live Write Test:"
 for m in /mnt/nfs1 /mnt/nfs2 /mnt/nfs3; do
     touch "$m/.h" && rm "$m/.h" && echo "$m: OK" || echo "$m: ERROR"
 done
-echo -e "\n[4/4] Cache State:"
+echo -e "\n[4/4] Cache State (Dirty/Writeback):"
+grep -E "Dirty|Writeback" /proc/meminfo
 free -g | awk 'NR==1{print "Total\tUsed\tFree\tCached"} NR==2{print $2"GB\t"$3"GB\t"$4"GB\t"$6"GB"}'
 EOF
 chmod +x /usr/local/bin/check_nfs.sh
 
-# 9. CREATE THE ELASTIC FLUSH SCRIPT
-cat << 'EOF' > /root/nfsflush.crontab.sh
-#!/bin/bash
-TOTAL_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RESERVE_KB=$(cat /proc/sys/vm/min_free_kbytes)
-POOL_KB=$(( TOTAL_KB - RESERVE_KB ))
-TRIGGER_KB=$(echo "$POOL_KB * 0.90" | bc | cut -d. -f1)
-CURRENT_CACHED=$(grep -w "Cached:" /proc/meminfo | awk '{print $2}')
-
-if [ "$CURRENT_CACHED" -gt "$TRIGGER_KB" ]; then
-    echo "$(date) - Pool Saturated: $CURRENT_CACHED KB. Flushing..." >> /var/log/nfs_flush.log
-    sync; echo 3 > /proc/sys/vm/drop_caches
-fi
-EOF
-chmod +x /root/nfsflush.crontab.sh
-
-# 10. SAFE CRONTAB APPEND
-if ! grep -q "nfsflush.crontab.sh" /etc/crontab; then
-    echo "*/1 * * * * root /bin/bash /root/nfsflush.crontab.sh > /dev/null 2>&1" >> /etc/crontab
-fi
-
-systemctl restart cron
-echo "NFS Golden Install Complete. MTU 9000, 60% Res, and 20GB Write Shield active."
+echo "NFS Golden Install v5.2 Complete. Automated flushes removed; native Kernel cache ratios active."
