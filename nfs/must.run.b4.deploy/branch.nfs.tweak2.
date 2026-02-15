@@ -1,6 +1,6 @@
 #!/bin/bash
 # =================================================================
-# NFS GOLDEN INSTALL v5.9 - PERFORMANCE & CACHE FOCUS (IP SAFE)
+# NFS GOLDEN INSTALL v6.0 - IP SAFE + 10-MIN CACHE FIX
 # =================================================================
 
 # 0. IMMEDIATE PURGE 
@@ -8,7 +8,6 @@ echo "Executing initial memory purge..."
 sync; echo 3 > /proc/sys/vm/drop_caches
 
 # 1. INSTALLS & OS FIXES
-# Only installing necessary tools, no network config changes.
 apt-get update && apt-get install -y nfs-kernel-server xfsprogs nfs-common bc sysstat cron smartmontools nvme-cli
 systemctl enable --now cron
 
@@ -62,13 +61,14 @@ kernel.numa_balancing = 0
 vm.dirty_background_ratio = 80
 vm.dirty_ratio = 95
 
-# 10-MINUTE HOLD TIMERS (centisecs)
-# Data stays in RAM for 600 seconds before 'expiry'
+# 10-MINUTE HOLD TIMERS (600 seconds)
+# Data stays in RAM for 60000 centisecs (10 mins)
 vm.dirty_expire_centisecs = 60000
-# Wake up every 60 seconds to check state
+# Wake up and check every 6000 centisecs (60 seconds)
 vm.dirty_writeback_centisecs = 6000
 EOF
 
+# Force apply and reload
 sysctl -p /etc/sysctl.d/99-nfs-golden.conf
 
 # 7. MASTER HEALTH CHECK TOOL
@@ -93,6 +93,6 @@ free -g | awk 'NR==1{print "Total\tUsed\tFree\tCached"} NR==2{print $2"GB\t"$3"G
 EOF
 chmod +x /usr/local/bin/check_nfs.sh
 
-echo "NFS Golden Install v5.9 Complete."
-echo "Network settings (IP/Netplan) were NOT touched."
-echo "Cache Settings: 80%/95% Ratios with 10-Minute Hold active."
+echo "NFS Golden Install v6.0 Complete."
+echo "IP addresses were NOT touched."
+echo "Cache is fixed: 60s Scan / 600s Hold."

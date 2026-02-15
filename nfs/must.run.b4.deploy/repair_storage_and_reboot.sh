@@ -3,7 +3,8 @@
 echo "Stopping NFS services to clear locks..."
 systemctl stop nfs-kernel-server
 systemctl stop nfs-server
-
+sync
+echo 3 > /proc/sys/vm/drop_caches
 # 2. FORCE OS DISK REPAIR ON NEXT REBOOT
 # This creates the trigger file for the OS/Root partition
 touch /forcefsck
