@@ -1,4 +1,5 @@
-
+#parent
+192.168.50.108 esx108.corp.internal
 
 #vmotion
 #192.168.51.1-0
