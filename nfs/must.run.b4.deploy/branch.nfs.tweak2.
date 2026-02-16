@@ -1,98 +1,96 @@
 #!/bin/bash
-# =================================================================
-# NFS GOLDEN INSTALL v6.0 - IP SAFE + 10-MIN CACHE FIX
-# =================================================================
+G='\033[0;32m'; Y='\033[1;33m'; R='\033[0;31m'; N='\033[0m'; B='\033[1;34m'
+STATS="/tmp/nfs_stats"; C_STATS="/tmp/client_io_cache"; D_STATS="/tmp/disk_stats"
+PEAK_FILE="/tmp/nfs_peak"
 
-# 0. IMMEDIATE PURGE 
-echo "Executing initial memory purge..."
-sync; echo 3 > /proc/sys/vm/drop_caches
-
-# 1. INSTALLS & OS FIXES
-apt-get update && apt-get install -y nfs-kernel-server xfsprogs nfs-common bc sysstat cron smartmontools nvme-cli
-systemctl enable --now cron
-
-# 2. WIPE OLD GHOST CONFIGS & PREVIOUS FLUSH SCRIPTS
-rm -f /etc/sysctl.d/99-nfs-*.conf
-rm -f /root/nfsflush.crontab.sh
-sed -i '/nfsflush.crontab.sh/d' /etc/crontab
-sed -i '/vm.dirty/d' /etc/sysctl.conf
-sed -i '/vm.min_free_kbytes/d' /etc/sysctl.conf
-
-# 3. NVMe TRIM & ADAPTIVE XFS REPAIR
-systemctl enable fstrim.timer && systemctl start fstrim.timer
-fstrim -av
-
-for dev in /dev/sdb /dev/sdc /dev/sdd; do
-    if ! mount | grep -q "$dev"; then
-        xfs_repair -L "$dev"
-    fi
-done
-
-# 4. FSTAB & MOUNTING
-mkdir -pv /mnt/nfs1 /mnt/nfs2 /mnt/nfs3
-mount -av
-
-# 5. ASYNC EXPORTS
-echo "/mnt/nfs1 *(rw,async,no_subtree_check,no_root_squash)" > /etc/exports
-echo "/mnt/nfs2 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
-echo "/mnt/nfs3 *(rw,async,no_subtree_check,no_root_squash)" >> /etc/exports
-exportfs -rav
-
-# 6. DYNAMIC KERNEL SHIELD & 10-MINUTE CACHE TUNING
+# --- DYNAMIC DETECTION ---
+CPU_COUNT=$(nproc)
 TOTAL_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RESERVE_KB=$(echo "$TOTAL_KB * 0.60" | bc | cut -d. -f1)
+TOTAL_GB=$(echo "scale=2; $TOTAL_KB / 1024 / 1024" | bc -l)
 
-cat << EOF > /etc/sysctl.d/99-nfs-golden.conf
-# Network Stack Performance (Buffer Tuning)
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
-net.core.rmem_max = 67108864
-net.core.wmem_max = 67108864
-net.ipv4.tcp_rmem = 4096 87380 67108864
-net.ipv4.tcp_wmem = 4096 65536 67108864
+# Kernel Settings
+D_RATIO=$(cat /proc/sys/vm/dirty_ratio)
+DB_RATIO=$(cat /proc/sys/vm/dirty_background_ratio)
+D_EXPIRE=$(cat /proc/sys/vm/dirty_expire_centisecs)
+D_WRITE=$(cat /proc/sys/vm/dirty_writeback_centisecs)
 
-# SYSTEM RESERVATION (Elastic 60% - Currently ${RESERVE_KB} KB)
-vm.min_free_kbytes = $RESERVE_KB
-vm.vfs_cache_pressure = 10
-vm.swappiness = 1
-kernel.numa_balancing = 0
+IFACE=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $5}' | head -n1)
+[[ -z "$IFACE" ]] && IFACE="ens34"
 
-# HIGH-UTILIZATION WRITE SHIELD (80% Background / 95% Hard Limit)
-vm.dirty_background_ratio = 80
-vm.dirty_ratio = 95
+# --- THROUGHPUT CALC ---
+curr_rx=$(cat /sys/class/net/$IFACE/statistics/rx_bytes); curr_tx=$(cat /sys/class/net/$IFACE/statistics/tx_bytes); curr_time=$(date +%s.%N)
+if [ -f "$STATS" ]; then
+    read prev_rx prev_tx prev_time < "$STATS"
+    t_diff=$(echo "$curr_time - $prev_time" | bc -l)
+    TOT_RX=$(echo "scale=0; (($curr_rx - $prev_rx) * 8 / $t_diff / 1000) / 1" | bc -l)
+    TOT_TX=$(echo "scale=0; (($curr_tx - $prev_tx) * 8 / $t_diff / 1000) / 1" | bc -l)
+else TOT_RX="0"; TOT_TX="0"; t_diff=1; fi
+echo "$curr_rx $curr_tx $curr_time" > "$STATS"
 
-# 10-MINUTE HOLD TIMERS (600 seconds)
-# Data stays in RAM for 60000 centisecs (10 mins)
-vm.dirty_expire_centisecs = 60000
-# Wake up and check every 6000 centisecs (60 seconds)
-vm.dirty_writeback_centisecs = 6000
-EOF
+# --- DISK WRITE CALC ---
+curr_disk_w=$(awk '{sum+=$7} END {print sum}' /proc/diskstats)
+if [ -f "$D_STATS" ]; then
+    read prev_disk_w < "$D_STATS"
+    DISK_W_KBPS=$(echo "scale=0; (($curr_disk_w - $prev_disk_w) * 512 * 8 / $t_diff / 1000) / 1" | bc -l)
+else DISK_W_KBPS="0"; fi
+echo "$curr_disk_w" > "$D_STATS"
 
-# Force apply and reload
-sysctl -p /etc/sysctl.d/99-nfs-golden.conf
+# Peak Tracking
+[[ ! -f "$PEAK_FILE" ]] && echo "0" > "$PEAK_FILE"
+PEAK_W=$(cat "$PEAK_FILE")
+if (( $(echo "$DISK_W_KBPS > $PEAK_W" | bc -l) )); then
+    echo "$DISK_W_KBPS" > "$PEAK_FILE"
+    PEAK_W=$DISK_W_KBPS
+fi
 
-# 7. MASTER HEALTH CHECK TOOL
-cat << 'EOF' > /usr/local/bin/check_nfs.sh
-#!/bin/bash
-echo "--- Starting Deep Health Check: $(date) ---"
-echo "[1/4] Physical Disk Status:"
-for d in /dev/sdb /dev/sdc /dev/sdd; do
-    smartctl -H "$d" | grep "test result" || echo "$d: SMART Status Unknown"
+clear
+echo -e "${B}==========================================================================================${N}"
+echo -e "    NFS MASTER DASHBOARD (v5.8) | MTU: 9000 | $(date +%H:%M:%S)"
+echo -e "------------------------------------------------------------------------------------------"
+NFSD_MAP=$(ps -eLo psr,comm | grep nfsd | awk '{count[$1]++} END {for (p in count) print p, count[p]}')
+for (( i=0; i<$CPU_COUNT; i++ )); do
+    core_th=$(echo "$NFSD_MAP" | awk -v c="$i" '$1==c {print $2}')
+    printf "    Core %-4s : %-4s nfsd threads\n" "$i" "${core_th:-0}"
 done
-echo -e "\n[2/4] Metadata Scan (Read-Only):"
-for dev in /dev/sdb /dev/sdc /dev/sdd; do
-    xfs_repair -n "$dev" 2>&1 | grep -E "Phase|found|error" | grep -v "reloading"
-done
-echo -e "\n[3/4] Live Write Test:"
-for m in /mnt/nfs1 /mnt/nfs2 /mnt/nfs3; do
-    touch "$m/.h" && rm "$m/.h" && echo "$m: OK" || echo "$m: ERROR"
-done
-echo -e "\n[4/4] Cache State (Dirty/Writeback):"
-grep -E "Dirty|Writeback" /proc/meminfo
-free -g | awk 'NR==1{print "Total\tUsed\tFree\tCached"} NR==2{print $2"GB\t"$3"GB\t"$4"GB\t"$6"GB"}'
-EOF
-chmod +x /usr/local/bin/check_nfs.sh
+echo -e "------------------------------------------------------------------------------------------"
+printf "    %-15s | %-5s | %-18s | %-18s\n" "CLIENT IP" "MSS" "RX (Write) kbps" "TX (Read) kbps"
+echo -e "------------------------------------------------------------------------------------------"
 
-echo "NFS Golden Install v6.0 Complete."
-echo "IP addresses were NOT touched."
-echo "Cache is fixed: 60s Scan / 600s Hold."
+declare -A p_rx p_tx
+C_TMP="/tmp/client_io_cache"
+[[ -f "$C_TMP" ]] && while read -r cip pr pt; do p_rx["$cip"]=$pr; p_tx["$cip"]=$pt; done < "$C_TMP"
+new_c_stats=""
+
+while read -r ip mss crx ctx; do
+    new_c_stats+="$ip $crx $ctx\n"
+    if [[ -n ${p_rx[$ip]} ]]; then
+        cl_rx=$(echo "scale=0; (($crx - ${p_rx[$ip]}) * 8 / $t_diff / 1000) / 1" | bc -l)
+        cl_tx=$(echo "scale=0; (($ctx - ${p_tx[$ip]}) * 8 / $t_diff / 1000) / 1" | bc -l)
+    else cl_rx="0"; cl_tx="0"; fi
+    printf "    %-15s | %-5s | %12s kbps     | %12s kbps\n" "$ip" "$mss" "${cl_rx:-0}" "${cl_tx:-0}"
+done < <(ss -ntip sport = :2049 | awk '/ESTAB/ {ip=$5; split(ip,a,":"); client=a[1]} /mss:/ {match($0, /mss:[0-9]+/); m=substr($0, RSTART+4, RLENGTH-4); match($0, /bytes_received:[0-9]+/); r=substr($0, RSTART+15, RLENGTH-15); match($0, /bytes_acked:[0-9]+/); t=substr($0, RSTART+12, RLENGTH-12); print client, m, r, t}')
+echo -ne "$new_c_stats" > "$C_TMP"
+
+echo -e "------------------------------------------------------------------------------------------"
+# --- MEMORY STATUS ---
+dirty_kb=$(grep "^Dirty:" /proc/meminfo | awk '{print $2}')
+cached_kb=$(grep "^Cached:" /proc/meminfo | awk '{print $2}')
+free_kb=$(grep "^MemFree:" /proc/meminfo | awk '{print $2}')
+util_pct=$(echo "scale=2; (($TOTAL_KB - $free_kb) / $TOTAL_KB) * 100" | bc -l)
+dirty_pct=$(echo "scale=2; ($dirty_kb / $TOTAL_KB) * 100" | bc -l)
+
+scan_sec=$((D_WRITE / 100))
+flush_timer=$(( scan_sec - ($(awk '{print int($1)}' /proc/uptime) % scan_sec) ))
+
+printf "1. ELASTIC CACHE : %-12s kb | UTIL: %-8s%% | TOTAL RAM: %s GB\n" "$((cached_kb * 8))" "$util_pct" "$TOTAL_GB"
+printf "2. DIRTY SHIELD  : %-12s kb | FILL: %-8s%% | NEXT SCAN: %ss\n" "$((dirty_kb * 8))" "$dirty_pct" "$flush_timer"
+printf "DISK WRITE: ${Y}%-12s${N} kbps | TOTAL RX: %-10s kbps | TOTAL TX: %-10s kbps\n" "${DISK_W_KBPS:-0}" "$TOT_RX" "$TOT_TX"
+echo -e "------------------------------------------------------------------------------------------"
+echo -e "    ${G}KERNEL TUNING:${N} Ratio: ${DB_RATIO}%/${D_RATIO}% | Hold: $((D_EXPIRE/100))s | Scan: ${scan_sec}s"
+echo -e "    PEAK DISK W: ${Y}${PEAK_W}${N} kbps | FREE: $(free -h | awk '/Mem:/ {print $7}')"
+echo -e "------------------------------------------------------------------------------------------"
+echo -e "    ${Y}EXPLANATION:${N}"
+echo -e "    - ${G}SCAN${N}: The kernel wakes up every ${scan_sec}s to check if RAM is full or data is old."
+echo -e "    - ${G}HOLD${N}: Data stays in RAM for $((D_EXPIRE/100))s unless RAM usage hits ${DB_RATIO}%."
+echo -e "    - ${G}FLUSH${N}: Happens only when 'Hold' expires or 'Ratio' is reached."
+echo -e "${B}==========================================================================================${N}"
