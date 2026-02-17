@@ -114,6 +114,15 @@ RUN echo "alias ls='ls --color=auto'\nalias ll='ls -alF'\nalias la='ls -A'\nalia
 RUN printf '#!/bin/bash\nmkdir -p /var/run/sshd\nservice nginx start\n/usr/sbin/sshd -D &\necho "VCF Manager Ready."\ntail -f /dev/null\n' > /usr/local/bin/start.sh && \
     chmod +x /usr/local/bin/start.sh
 
+
+#### SECTION: VCF CLI INSTALLATION ####
+# Download, extract, rename to vcfcli, and make executable
+RUN curl -L https://packages.broadcom.com/artifactory/vcf-distro/vcf-cli/linux/amd64/v9.0.0/vcf-cli.tar.gz -o /tmp/vcf-cli.tar.gz && \
+    tar -xzvf /tmp/vcf-cli.tar.gz -C /tmp && \
+    mv /tmp/vcf-cli-linux_amd64 /usr/local/bin/vcfcli && \
+    chmod +x /usr/local/bin/vcfcli && \
+    rm /tmp/vcf-cli.tar.gz
+    
 WORKDIR /root
 EXPOSE 22 80 443
 ENTRYPOINT ["/usr/local/bin/start.sh"]
