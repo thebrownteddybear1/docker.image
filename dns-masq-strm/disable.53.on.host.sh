@@ -14,11 +14,14 @@ systemctl disable systemd-resolved
 # Bash
 
 # 1. Remove the symlink
-sudo rm /etc/resolv.conf
+sudo chattr -i /etc/resolv.conf
+rm /etc/resolv.conf
 
 # 2. Create a fresh, static resolv.conf
-echo "nameserver 127.0.0.1" >/etc/resolve.conf | sudo tee /etc/resolv.conf
-echo "nameserver 192.168.50.53" >>/etc/resolve.conf | sudo tee /etc/resolv.conf
-echo "nameserver 192.168.50.1" >>/etc/resolve.conf | sudo tee /etc/resolv.conf
+#echo "nameserver 127.0.0.1" > /etc/resolve.conf 
+echo "nameserver 192.168.50.53" > /etc/resolv.conf 
+#echo "nameserver 192.168.50.1" >> /etc/resolv.conf
+ls /etc/resolv.*
+cat /etc/resolv.conf
 # 3. Make it immutable (Optional, but stops Ubuntu from overwriting it)
 sudo chattr +i /etc/resolv.conf

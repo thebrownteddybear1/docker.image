@@ -7,7 +7,7 @@ sync
 echo 3 > /proc/sys/vm/drop_caches
 # 2. FORCE OS DISK REPAIR ON NEXT REBOOT
 # This creates the trigger file for the OS/Root partition
-touch /forcefsck
+#touch /forcefsck
 echo "OS Disk set to auto-repair on next reboot."
 
 # 3. UNMOUNT NFS TARGETS

@@ -29,4 +29,4 @@ services:
 
 networks:
   default:
-    name: vcf_network
+    name: vcf_network 
